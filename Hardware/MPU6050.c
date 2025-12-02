@@ -161,3 +161,15 @@ void MPU6050_GetData(int16_t *AccX, int16_t *AccY, int16_t *AccZ,
 	*GyroY = (Data[10] << 8) | Data[11];
 	*GyroZ = (Data[12] << 8) | Data[13];
 }
+
+void MPU6050_GetGZ(int16_t *pGZ)
+{
+    uint8_t data[2];  // 存储Z轴角速度的高8位和低8位
+    
+    // 读取陀螺仪Z轴的高8位和低8位寄存器（0x47和0x48）
+    MPU6050_ReadRegs(MPU6050_GYRO_ZOUT_H, data, 2);
+    
+    // 拼接高8位和低8位，得到原始值（有符号整数）
+    *pGZ = (int16_t)((data[0] << 8) | data[1]);
+    
+}

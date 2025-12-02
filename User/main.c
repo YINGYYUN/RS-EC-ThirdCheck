@@ -25,19 +25,20 @@
 uint8_t MPU6050_Resolving_ENABLE = 0;
 
 //MPU6050读取接收
-int16_t AX, AY, AZ, GX, GY, GZ;
+//int16_t AX, AY, AZ, GX, GY, GZ;
+int16_t GZ;
 
 uint8_t MPU6050_ENABLE = 0;
 
-float RollAcc;    		// 加速度计计算的横滚角
-float RollGyro;   		// 陀螺仪积分的横滚角
-float Roll;       		// 融合后的横滚角
+//float RollAcc;    		// 加速度计计算的横滚角
+//float RollGyro;   		// 陀螺仪积分的横滚角
+//float Roll;       		// 融合后的横滚角
 
 float Yaw = 0;			//偏航角
 
-float PitchAcc;			//加速度计算的俯仰角
-float PitchGyro;		//陀螺仪积分的俯仰角
-float Pitch;			//融合后的俯仰角	
+//float PitchAcc;			//加速度计算的俯仰角
+//float PitchGyro;		//陀螺仪积分的俯仰角
+//float Pitch;			//融合后的俯仰角	
 /* ==================== [END] MPU6050相关变量定义 [END] ==================== */
 
 
@@ -206,8 +207,8 @@ int main(void)
 		RGB888=TCS34725_GetRGB888(rgb);//将原始数据转化为RGB888格式
 		RGB565=TCS34725_GetRGB565(rgb);//将原始数据转化为RGB565格式
 		Dis_Temp();//转化为可读颜色数据
-		Serial_Printf("[display,0,0,Roll      Yaw       Pitch     ]");
-		Serial_Printf("[display,0,20,%+02.3f   %+02.3f   %+02.3f]", Roll, Yaw, Pitch);
+		Serial_Printf("[display,0,0,Yaw]");
+		Serial_Printf("[display,0,20,%+02.3f  ]", Yaw);
 		Serial_Printf("[display,0,40,R     G     B]");
 		Serial_Printf("[display,0,60,%3d   %3d   %3d   ]", R_Dat, G_Dat, B_Dat);
 		
@@ -232,25 +233,25 @@ void TIM1_UP_IRQHandler(void)
 		
 		if(MPU6050_Resolving_ENABLE)//启用MPU6050
 		{
-			MPU6050_GetData(&AX, &AY, &AZ, &GX, &GY, &GZ);
+			MPU6050_GetGZ(&GZ);
 			
 			//校准零飘
-			GX += 55;
-			GY += 18;
+//			GX += 55;
+//			GY += 18;
 			GZ += 10;
 		
-			// 横滚角计算
-			RollAcc = atan2(AY, AZ) / 3.14159 * 180;  				// 横滚角（绕X轴）
-			RollGyro = Roll + GX / 32768.0 * 2000 * 0.001;  		// 陀螺仪X轴积分
-			Roll = 0.001 * RollAcc + (1 - 0.001) * RollGyro;  		// 相同互补滤波算法
+//			// 横滚角计算
+//			RollAcc = atan2(AY, AZ) / 3.14159 * 180;  				// 横滚角（绕X轴）
+//			RollGyro = Roll + GX / 32768.0 * 2000 * 0.001;  		// 陀螺仪X轴积分
+//			Roll = 0.001 * RollAcc + (1 - 0.001) * RollGyro;  		// 相同互补滤波算法
 			
 			// 偏航角：仅陀螺仪积分（无加速度计校准，会漂移）
 			Yaw += GZ / 32768.0 * 2000 * 0.001;  // 仅积分，无校准
 			
-			// 俯仰角计算
-			PitchAcc = -atan2(AX, AZ) / 3.14159 * 180;  			// 俯仰角（绕Y轴）
-			PitchGyro = Pitch + GY / 32768.0 * 2000 * 0.001;  		// 陀螺仪积分（2000是量程，0.001是1ms采样间隔）
-			Pitch = 0.001 * PitchAcc + (1 - 0.001) * PitchGyro;  	// 互补滤波
+//			// 俯仰角计算
+//			PitchAcc = -atan2(AX, AZ) / 3.14159 * 180;  			// 俯仰角（绕Y轴）
+//			PitchGyro = Pitch + GY / 32768.0 * 2000 * 0.001;  		// 陀螺仪积分（2000是量程，0.001是1ms采样间隔）
+//			Pitch = 0.001 * PitchAcc + (1 - 0.001) * PitchGyro;  	// 互补滤波
 			
 		}
 
