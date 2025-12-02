@@ -55,10 +55,7 @@ uint8_t Key_Event = 0;
 /* ==================== [END] 蓝牙虚拟按键相关变量定义 [END] ==================== */
 
 
-
-
-//舵机角度
-float S_Angle = 90.0f;
+RGB rgb;					//结构体
 
 
 int main(void)
@@ -67,21 +64,22 @@ int main(void)
 //	LED_Init();
 	Serial_Init();
 	MPU6050_Init();
-	Servo_Init();
 	Motor_Init();
-	
-	Timer_Init();
 	
 //	LED_SetMode(LED_OFFMode);
 	
 	Serial_RxFlag = 0;
 	
 	//颜色识别模块TCS34725
-	RGB rgb;					//结构体
 	TCS34725_GPIO_Init();		//颜色传感器GPIO初始化
 	TCS34725_Init();			//颜色传感器初始化
 	integrationTime(33);		//积分时间
 
+	Timer_Init();
+	
+	//舵机角度
+	uint8_t S_Angle = 90;
+	Servo_SetAngle(S_Angle);
 	
 	while(1)
 	{
@@ -152,7 +150,7 @@ int main(void)
 				if (strcmp(Name, "S_Angle") == 0)
 				{
 					int IntValue = atoi(Value);				
-					S_Angle = IntValue;
+					S_Angle = 180 - IntValue;
 					
 					Servo_SetAngle(S_Angle);
 				}
@@ -203,21 +201,20 @@ int main(void)
 		}
 		/* =================== [END] 手动控制模块 [END]==================== */		
 		
-		rgb=TCS34725_Get_RGBData();
-		RGB888=TCS34725_GetRGB888(rgb);//将原始数据转化为RGB888格式
-		RGB565=TCS34725_GetRGB565(rgb);//将原始数据转化为RGB565格式
-		Dis_Temp();//转化为可读颜色数据
+
 		Serial_Printf("[display,0,0,Yaw]");
 		Serial_Printf("[display,0,20,%+02.3f  ]", Yaw);
 		Serial_Printf("[display,0,40,R     G     B]");
 		Serial_Printf("[display,0,60,%3d   %3d   %3d   ]", R_Dat, G_Dat, B_Dat);
-		
+		Serial_Printf("[display,0,80,S_Angle]");
+		Serial_Printf("[display,0,100,%d  ]", S_Angle);
 		
 //		Serial_Printf("%f,%f,%f\r\n", Roll, Yaw,Pitch);
 	}
 	
 }
 
+uint16_t TimeTick;
 
 //1ms的定时中断
 void TIM1_UP_IRQHandler(void)
@@ -230,7 +227,16 @@ void TIM1_UP_IRQHandler(void)
 		//保证数据的及时读取
 		
 //		LED_Tick();
-		
+		TimeTick ++;
+		if(TimeTick >= 100)
+		{
+			TimeTick = 0;
+			rgb=TCS34725_Get_RGBData();
+			RGB888=TCS34725_GetRGB888(rgb);//将原始数据转化为RGB888格式
+			RGB565=TCS34725_GetRGB565(rgb);//将原始数据转化为RGB565格式
+			Dis_Temp();//转化为可读颜色数据
+		}
+			
 		if(MPU6050_Resolving_ENABLE)//启用MPU6050
 		{
 			MPU6050_GetGZ(&GZ);

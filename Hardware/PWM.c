@@ -61,8 +61,8 @@ void PWM_Init(void)
     // 4. 配置TIM3时基单元（舵机PWM频率=50Hz，周期20ms）
     TIM_TimeBaseInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;  // 显式赋值
     TIM_TimeBaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up;
-    TIM_TimeBaseInitStructure.TIM_Period = 20000 - 1;            // ARR=19999
-    TIM_TimeBaseInitStructure.TIM_Prescaler = 720 - 1;            // PSC=719
+	TIM_TimeBaseInitStructure.TIM_Period = 20000 - 1;            // ARR=19999 (20ms period if timer tick = 1us)
+	TIM_TimeBaseInitStructure.TIM_Prescaler = 72 - 1;            // PSC=71 -> timer tick = 72MHz/72 = 1MHz (1us)
     TIM_TimeBaseInitStructure.TIM_RepetitionCounter = 0;
     TIM_TimeBaseInit(TIM3, &TIM_TimeBaseInitStructure);
     
