@@ -706,16 +706,6 @@
               <FilePath>.\Hardware\LED.h</FilePath>
             </File>
             <File>
-              <FileName>Serial.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\Serial.c</FilePath>
-            </File>
-            <File>
-              <FileName>Serial.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\Serial.h</FilePath>
-            </File>
-            <File>
               <FileName>MPU6050.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Hardware\MPU6050.c</FilePath>
@@ -759,6 +749,46 @@
               <FileName>Servo.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Hardware\Servo.h</FilePath>
+            </File>
+            <File>
+              <FileName>Motor.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\Motor.h</FilePath>
+            </File>
+            <File>
+              <FileName>Motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\Motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>Serial.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\Serial.c</FilePath>
+            </File>
+            <File>
+              <FileName>Serial.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\Serial.h</FilePath>
+            </File>
+            <File>
+              <FileName>TCS34725.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\TCS34725.c</FilePath>
+            </File>
+            <File>
+              <FileName>TCS34725.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\TCS34725.h</FilePath>
+            </File>
+            <File>
+              <FileName>TCS34725_IIC.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\TCS34725_IIC.c</FilePath>
+            </File>
+            <File>
+              <FileName>TCS34725_IIC.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\TCS34725_IIC.h</FilePath>
             </File>
           </Files>
         </Group>
