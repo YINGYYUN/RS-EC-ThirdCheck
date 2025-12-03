@@ -3,15 +3,18 @@
 
 extern uint8_t LED_Mode;
 
-/*模式定义*/
-#define LED_OFFMode              0
-#define LED_ONMode               1
-#define LED_SlowFlashMode        2
-#define LED_FastFlashMode        3
-//#define LED_DotFlashMode         4
+/*引脚配置*/
+#define LED_NUM				 3
+
+#define LED_PIN_1	         GPIO_Pin_8     //蓝LED===PA8
+#define LED_PIN_2	         GPIO_Pin_11    //绿LED===PA11
+#define LED_PIN_3	         GPIO_Pin_12    //红LED===PA12
+#define LED_ALL_PINS 			(LED_PIN_1 | LED_PIN_2 | LED_PIN_3)
 
 void LED_Init(void);
-void LED_SetMode(uint8_t Mode);
-void LED_Tick(void);
+void LED_OFF_SET(uint8_t Num);
+void LED_ON_SET(uint8_t Num);
+void LED_OFF_ALL(void);
+void LED_ON_ALL(void);
 
 #endif

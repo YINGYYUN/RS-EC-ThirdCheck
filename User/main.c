@@ -4,14 +4,15 @@
 #include "Timer.h"
 
 #include "OLED.h"
-//#include "LED.h"
-#include "MPU6050.h"
+#include "LED.h"
+#include "MPU6050.h"//陀螺仪模块
 #include "Servo.h"
 #include "Motor.h"
 #include "Serial.h"
-
-#include "TCS34725.h"//颜色传感器
+#include "TCS34725.h"//颜色识别模块
 #include "TCS34725_IIC.h"
+#include "HCSR04.h"//超声波模块
+#include "Car.h"
 
 #include <string.h>
 #include <math.h>
@@ -51,22 +52,46 @@ uint8_t Key_Event = 0;
 #define DOWN		2
 #define LEFT		3
 #define RIGHT		4
-#define STOP		5
+#define LEFT_90		5
+#define RIGHT_90	6
+#define STOP		7
 /* ==================== [END] 蓝牙虚拟按键相关变量定义 [END] ==================== */
 
 
-RGB rgb;					//结构体
 
+
+/* =================== [START] LED响应颜色识别模块 [START]==================== */
+#define OTHERS		0
+#define RED			1
+#define GREEN		2
+#define BLUE		3
+#define BLACK		4
+
+uint8_t Color_Flag = OTHERS;
+/* =================== [END] LED响应颜色识别模块 [END]==================== */
+
+
+
+
+RGB rgb;					//颜色结构体
+
+uint16_t HCSR04_Distance=0;  //超声波测到的距离
+
+float Car_Tar_Yaw = 0.0f;
+uint8_t Car_Turn_ENABLE = 0;
+uint8_t Car_Turn_Count = 0;
+uint8_t Cur_Flag, Pre_Flag;
 
 int main(void)
 {
 	OLED_Init();
-//	LED_Init();
+	LED_Init();
 	Serial_Init();
 	MPU6050_Init();
 	Motor_Init();
+	HCSR04_Init();
 	
-//	LED_SetMode(LED_OFFMode);
+	LED_OFF_ALL();
 	
 	Serial_RxFlag = 0;
 	
@@ -78,8 +103,10 @@ int main(void)
 	Timer_Init();
 	
 	//舵机角度
-	uint8_t S_Angle = 90;
-	Servo_SetAngle(S_Angle);
+	uint8_t Servo_Angle = 90;
+	Servo_SetAngle(Servo_Angle);
+	
+	
 	
 	while(1)
 	{
@@ -117,10 +144,23 @@ int main(void)
 				{
 					Key_Event = RIGHT;
 				}
+				else if (strcmp(Name, "LEFT_90") == 0 && strcmp(Action, "down") == 0)
+				{
+					Key_Event = LEFT_90;
+					Car_Tar_Yaw = Yaw + 90.0f;
+					Car_Turn_ENABLE = 1;
+				}
+				else if (strcmp(Name, "RIGHT_90") == 0 && strcmp(Action, "down") == 0)
+				{
+					Key_Event = RIGHT_90;
+					Car_Tar_Yaw = Yaw - 90.0f;
+					Car_Turn_ENABLE = 1;
+				}
 				else if (strcmp(Name, "STOP") == 0 && strcmp(Action, "down") == 0)
 				{
 					Key_Event = STOP;
 				}
+				
 			}
 			
 			//滑杆解析
@@ -150,9 +190,9 @@ int main(void)
 				if (strcmp(Name, "S_Angle") == 0)
 				{
 					int IntValue = atoi(Value);				
-					S_Angle = 180 - IntValue;
+					Servo_Angle = 180 - IntValue;
 					
-					Servo_SetAngle(S_Angle);
+					Servo_SetAngle(Servo_Angle);
 				}
 			}
 			Serial_RxFlag = 0;
@@ -162,44 +202,84 @@ int main(void)
 		
 		MPU6050_Resolving_ENABLE = 1;
 		
-		/* =================== [START] 手动控制模块 [START]==================== */		
+		/* =================== [START] 控制模块 [START]==================== */
 		switch(Key_Event)
 		{
 			case 0:
-				Motor_SetPWM1(0);
-				Motor_SetPWM2(0);
+				Car_Stop();
+				Cur_Flag = F_Car_Stop;
 				break;
 			
 			case UP:
-				Motor_SetPWM1(90);
-				Motor_SetPWM2(90);
+				Go_Ahead();
+				Cur_Flag = F_Go_Ahead;
 				break;
 			
 			case DOWN:
-				Motor_SetPWM1(-90);
-				Motor_SetPWM2(-90);
+				Go_Back();
+				Cur_Flag = F_Go_Back;
 				break;
 			
 			case LEFT:
-				Motor_SetPWM1(-90);
-				Motor_SetPWM2(90);
+				Self_Left();
+				Cur_Flag = F_Self_Left;
 				break;
 			
 			case RIGHT:
-				Motor_SetPWM1(90);
-				Motor_SetPWM2(-90);
+				Self_Right();
+				Cur_Flag = F_Self_Right;
 				break;
 			
+//			case LEFT_90:
+//				Self_Right();
+//				Car_Tar_Yaw = Yaw + 90.0f;
+//				Car_Turn_ENABLE = 1;
+
+//				break;
+//			
+//			case RIGHT_90:
+//				Self_Right();
+//				Car_Tar_Yaw = Yaw - 90.0f;
+//				Car_Turn_ENABLE = 1;
+//				break;
+			
 			case STOP:
-				Motor_SetPWM1(0);
-				Motor_SetPWM2(0);
+				Car_Stop();
+				Cur_Flag = F_Car_Stop;
 				break;
 			
 			default:
 				
 				break;		
 		}
-		/* =================== [END] 手动控制模块 [END]==================== */		
+		if(Car_Turn_ENABLE){
+			if (Car_Turn_Count >= 2)
+			{
+				Car_Turn_Count = 0;
+				Car_Stop();
+				Car_Turn_ENABLE = 0;
+			}
+			else if(Yaw - Car_Tar_Yaw > 1.0f)
+			{
+				Self_Right();
+				Cur_Flag = F_Self_Right;
+				if (Pre_Flag != Cur_Flag)Car_Turn_Count ++;
+			}
+			else if(Car_Tar_Yaw - Yaw > 1.0f)
+			{
+				Self_Left();
+				Cur_Flag = F_Self_Left;
+				if (Pre_Flag != Cur_Flag)Car_Turn_Count ++;
+			}
+			else
+			{
+				Car_Turn_Count = 0;
+				Car_Stop();
+				Car_Turn_ENABLE = 0;
+			}
+		}
+		if (Pre_Flag != Cur_Flag)Pre_Flag = Cur_Flag;
+		/* =================== [END] 控制模块 [END]==================== */		
 		
 
 		Serial_Printf("[display,0,0,Yaw]");
@@ -207,11 +287,45 @@ int main(void)
 		Serial_Printf("[display,0,40,R     G     B]");
 		Serial_Printf("[display,0,60,%3d   %3d   %3d   ]", R_Dat, G_Dat, B_Dat);
 		Serial_Printf("[display,0,80,S_Angle]");
-		Serial_Printf("[display,0,100,%d  ]", S_Angle);
+		Serial_Printf("[display,0,100,%d  ]", Servo_Angle);
 		
+		HCSR04_Distance = HCSR04_GetValue();
+		
+		Serial_Printf("[display,0,120,HCSR04]");
+		Serial_Printf("[display,0,140,%d  ]", HCSR04_Distance);
 //		Serial_Printf("%f,%f,%f\r\n", Roll, Yaw,Pitch);
+		
+		/* =================== [START] LED响应颜色识别模块 [START]==================== */
+		if (0)//红
+		{
+			Color_Flag = RED;
+			LED_OFF_ALL();
+			LED_ON_SET(3);
+		}
+		else if(0)//绿
+		{
+			Color_Flag = GREEN;
+			LED_OFF_ALL();
+			LED_ON_SET(2);			
+		}
+		else if(0)//蓝
+		{
+			Color_Flag = BLUE;
+			LED_OFF_ALL();
+			LED_ON_SET(1);			
+		}
+		else if(0)//黑
+		{
+			Color_Flag = BLACK;
+			LED_ON_ALL();
+		}
+		else //其他
+		{
+			Color_Flag = OTHERS;
+			LED_OFF_ALL();
+		}		
+		/* =================== [END] LED响应颜色识别模块 [END]==================== */
 	}
-	
 }
 
 uint16_t TimeTick;
@@ -228,15 +342,22 @@ void TIM1_UP_IRQHandler(void)
 		
 //		LED_Tick();
 		TimeTick ++;
+
+		//超声波模块HCSR04进程
+		HCSR04_Tick();
+		
+
 		if(TimeTick >= 100)
 		{
 			TimeTick = 0;
+			//颜色识别模块TCS34725
 			rgb=TCS34725_Get_RGBData();
 			RGB888=TCS34725_GetRGB888(rgb);//将原始数据转化为RGB888格式
 			RGB565=TCS34725_GetRGB565(rgb);//将原始数据转化为RGB565格式
 			Dis_Temp();//转化为可读颜色数据
 		}
-			
+		
+		/* =================== [START] MPU6050解算模块 [START]==================== */
 		if(MPU6050_Resolving_ENABLE)//启用MPU6050
 		{
 			MPU6050_GetGZ(&GZ);
@@ -252,14 +373,14 @@ void TIM1_UP_IRQHandler(void)
 //			Roll = 0.001 * RollAcc + (1 - 0.001) * RollGyro;  		// 相同互补滤波算法
 			
 			// 偏航角：仅陀螺仪积分（无加速度计校准，会漂移）
-			Yaw += GZ / 32768.0 * 2000 * 0.001;  // 仅积分，无校准
-			
+			if (GZ <= -2 || 2 <= GZ){Yaw += GZ / 32768.0 * 2000 * 0.001;}
+
 //			// 俯仰角计算
 //			PitchAcc = -atan2(AX, AZ) / 3.14159 * 180;  			// 俯仰角（绕Y轴）
 //			PitchGyro = Pitch + GY / 32768.0 * 2000 * 0.001;  		// 陀螺仪积分（2000是量程，0.001是1ms采样间隔）
 //			Pitch = 0.001 * PitchAcc + (1 - 0.001) * PitchGyro;  	// 互补滤波
-			
 		}
-
+		/* =================== [END] MPU6050解算模块 [END]==================== */
+		
 	}
 }

@@ -790,6 +790,26 @@
               <FileType>5</FileType>
               <FilePath>.\Hardware\TCS34725_IIC.h</FilePath>
             </File>
+            <File>
+              <FileName>HCSR04.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\HCSR04.h</FilePath>
+            </File>
+            <File>
+              <FileName>HCSR04.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\HCSR04.c</FilePath>
+            </File>
+            <File>
+              <FileName>Car.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\Car.c</FilePath>
+            </File>
+            <File>
+              <FileName>Car.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\Car.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
