@@ -21,11 +21,11 @@
 
 
 
-/* ==================== [START] MPU6050相关变量定义 [START] ==================== */
+/* ==================== [START] MPU6050姿态解算相关变量定义 [START] ==================== */
 //解算开关标志位
 uint8_t MPU6050_Resolving_ENABLE = 0;
 
-//MPU6050读取接收
+//MPU6050原始数据读取接收
 //int16_t AX, AY, AZ, GX, GY, GZ;
 int16_t GZ;
 
@@ -35,52 +35,60 @@ uint8_t MPU6050_ENABLE = 0;
 //float RollGyro;   		// 陀螺仪积分的横滚角
 //float Roll;       		// 融合后的横滚角
 
-float Yaw = 0;			//偏航角
+float Yaw = 0;				//偏航角
 
 //float PitchAcc;			//加速度计算的俯仰角
-//float PitchGyro;		//陀螺仪积分的俯仰角
-//float Pitch;			//融合后的俯仰角	
-/* ==================== [END] MPU6050相关变量定义 [END] ==================== */
+//float PitchGyro;			//陀螺仪积分的俯仰角
+//float Pitch;				//融合后的俯仰角	
+/* ==================== [END] MPU6050姿态解算相关变量定义 [END] ==================== */
 
 
 
 
-/* ==================== [START] 蓝牙虚拟按键相关变量定义 [START] ==================== */
-uint8_t Key_Event = 0;
+/* ==================== [START] 运动状态控制相关变量定义 [START] ==================== */
+uint8_t Car_Movtion_Event = 0;
 
+#define STOP		0
 #define UP			1
 #define DOWN		2
 #define LEFT		3
 #define RIGHT		4
 #define LEFT_90		5
 #define RIGHT_90	6
-#define STOP		7
-/* ==================== [END] 蓝牙虚拟按键相关变量定义 [END] ==================== */
+
+//定角度转向请求挂起标志位
+uint8_t Car_Turn_ENABLE = 0;
+//转向目标角度存储
+float Car_Tar_Yaw = 0.0f;
+//转向工程中运动状态更改次数统计
+uint8_t Car_Turn_Count = 0;
+//运动状态标记
+uint8_t Cur_Flag, Pre_Flag;
+
+uint16_t Car_Movtion_Delay_TimeTick = 0;
+/* ==================== [END] 运动状态控制相关变量定义 [END] ==================== */
 
 
 
 
-/* =================== [START] LED响应颜色识别模块 [START]==================== */
+/* =================== [START] 颜色识别模块 [START]==================== */
+RGB rgb;					//颜色结构体
+
 #define OTHERS		0
 #define RED			1
 #define GREEN		2
 #define BLUE		3
 #define BLACK		4
 
+//颜色分类判定
 uint8_t Color_Flag = OTHERS;
-/* =================== [END] LED响应颜色识别模块 [END]==================== */
+/* =================== [END] 颜色识别模块 [END]==================== */
 
 
 
 
-RGB rgb;					//颜色结构体
-
-uint16_t HCSR04_Distance=0;  //超声波测到的距离
-
-float Car_Tar_Yaw = 0.0f;
-uint8_t Car_Turn_ENABLE = 0;
-uint8_t Car_Turn_Count = 0;
-uint8_t Cur_Flag, Pre_Flag;
+//超声波测到的距离
+uint16_t HCSR04_Distance=0;  
 
 int main(void)
 {
@@ -108,8 +116,36 @@ int main(void)
 	
 	
 	
+	
+	/* =================== [START] 菜单初始化模块 [START] =================== */	
+	char Mode_Menu[][15] = {"Manual Mode  ", "Auto Mode    "};
+	#define Flag_Manual_Mode			0
+	#define Flag_Auto_Mode				1
+	
+	//功能状态
+	uint8_t FUNCTION_State = Flag_Manual_Mode;
+	
+	Serial_Printf("[display-clear]");
+	Serial_Printf("[display,0,0,FUNCTION State]");
+	Serial_Printf("[display,0,0,%s]", Mode_Menu[FUNCTION_State]);
+	Serial_Printf("[display,0,40,Yaw]");
+	Serial_Printf("[display,0,80,R     G     B]");
+	Serial_Printf("[display,0,120,S_Angle]");
+	Serial_Printf("[display,0,160,HCSR04]");
+/* =================== [END] 菜单初始化模块 [END] =================== */	
+	
+	
+	
+	
+	//似乎可以不关闭？
+	MPU6050_Resolving_ENABLE = 1;
+	
 	while(1)
 	{
+		
+		
+		
+		
 		/* =================== [START] 蓝牙收发与处理模块 [START]==================== */		
 		if (Serial_RxFlag == 1)
 		{			
@@ -124,43 +160,64 @@ int main(void)
 				//如果没有新的子串，函数会返回空指针
 				char * Action = strtok(NULL, ",");
 				
-				if (strcmp(Action, "up") == 0)
+				if (strcmp(Name, "MODE") == 0 && strcmp(Action, "down") == 0)
 				{
-					Key_Event = 0;
-				}
-				else if (strcmp(Name, "UP") == 0 && strcmp(Action, "down") == 0)
-				{
-					Key_Event = UP;
-				}
-				else if (strcmp(Name, "DOWN") == 0 && strcmp(Action, "down") == 0)
-				{
-					Key_Event = DOWN;
-				}
-				else if (strcmp(Name, "LEFT") == 0 && strcmp(Action, "down") == 0)
-				{
-					Key_Event = LEFT;
-				}
-				else if (strcmp(Name, "RIGHT") == 0 && strcmp(Action, "down") == 0)
-				{
-					Key_Event = RIGHT;
-				}
-				else if (strcmp(Name, "LEFT_90") == 0 && strcmp(Action, "down") == 0)
-				{
-					Key_Event = LEFT_90;
-					Car_Tar_Yaw = Yaw + 90.0f;
-					Car_Turn_ENABLE = 1;
-				}
-				else if (strcmp(Name, "RIGHT_90") == 0 && strcmp(Action, "down") == 0)
-				{
-					Key_Event = RIGHT_90;
-					Car_Tar_Yaw = Yaw - 90.0f;
-					Car_Turn_ENABLE = 1;
-				}
-				else if (strcmp(Name, "STOP") == 0 && strcmp(Action, "down") == 0)
-				{
-					Key_Event = STOP;
+					//手动/自动模式切换
+					Car_Stop();
+					FUNCTION_State = 1 - FUNCTION_State;
 				}
 				
+				//手动控制按键状态解析及响应
+				if (FUNCTION_State == Flag_Manual_Mode)
+				{
+					if (strcmp(Action, "up") == 0)
+					{
+						//只有手动运动控制按键存在松开判定
+						Car_Movtion_Event = STOP;
+						Car_Stop();
+					}
+					else if (strcmp(Name, "UP") == 0 && strcmp(Action, "down") == 0)
+					{
+						Car_Movtion_Event = UP;
+						Go_Ahead();
+					}
+					else if (strcmp(Name, "DOWN") == 0 && strcmp(Action, "down") == 0)
+					{
+						Car_Movtion_Event = DOWN;
+						Go_Back();
+					}
+					else if (strcmp(Name, "LEFT") == 0 && strcmp(Action, "down") == 0)
+					{
+						Car_Movtion_Event = LEFT;
+						Self_Left();
+					}
+					else if (strcmp(Name, "RIGHT") == 0 && strcmp(Action, "down") == 0)
+					{
+						Car_Movtion_Event = RIGHT;
+						Self_Right();
+					}
+					else if (strcmp(Name, "L_90") == 0 && strcmp(Action, "down") == 0)
+					{
+						Car_Movtion_Event = LEFT_90;
+						
+						//发送定角度转向请求
+						Car_Tar_Yaw = Yaw + 90.0f;
+						Car_Turn_ENABLE = 1;
+					}
+					else if (strcmp(Name, "R_90") == 0 && strcmp(Action, "down") == 0)
+					{
+						Car_Movtion_Event = RIGHT_90;
+						
+						//发送定角度转向请求
+						Car_Tar_Yaw = Yaw - 90.0f;
+						Car_Turn_ENABLE = 1;
+					}
+					else if (strcmp(Name, "STOP") == 0 && strcmp(Action, "down") == 0)
+					{
+						Car_Movtion_Event = STOP;
+						Car_Stop();
+					}			
+				}
 			}
 			
 			//滑杆解析
@@ -195,63 +252,43 @@ int main(void)
 					Servo_SetAngle(Servo_Angle);
 				}
 			}
+			
+			//摇杆解析不启用，代码部分删除
+			
 			Serial_RxFlag = 0;
 		}
 		/* =================== [END] 蓝牙收发与处理模块 [END]==================== */
 		
 		
-		MPU6050_Resolving_ENABLE = 1;
 		
-		/* =================== [START] 控制模块 [START]==================== */
-		switch(Key_Event)
+		
+		/* =================== [START] 小车行进控制模块 [START]==================== */
+		switch (FUNCTION_State)
 		{
-			case 0:
-				Car_Stop();
-				Cur_Flag = F_Car_Stop;
+			//手动控制
+			case Flag_Manual_Mode:
+			{
+				//大部分逻辑干脆转到蓝牙解析里面了
+				
 				break;
+			}
 			
-			case UP:
-				Go_Ahead();
-				Cur_Flag = F_Go_Ahead;
+			//自动控制
+			case Flag_Auto_Mode:
+			{
+				Car_Movtion_Delay_TimeTick = 0;
+				
 				break;
-			
-			case DOWN:
-				Go_Back();
-				Cur_Flag = F_Go_Back;
-				break;
-			
-			case LEFT:
-				Self_Left();
-				Cur_Flag = F_Self_Left;
-				break;
-			
-			case RIGHT:
-				Self_Right();
-				Cur_Flag = F_Self_Right;
-				break;
-			
-//			case LEFT_90:
-//				Self_Right();
-//				Car_Tar_Yaw = Yaw + 90.0f;
-//				Car_Turn_ENABLE = 1;
-
-//				break;
-//			
-//			case RIGHT_90:
-//				Self_Right();
-//				Car_Tar_Yaw = Yaw - 90.0f;
-//				Car_Turn_ENABLE = 1;
-//				break;
-			
-			case STOP:
-				Car_Stop();
-				Cur_Flag = F_Car_Stop;
-				break;
+			}
 			
 			default:
-				
-				break;		
+			{
+				//留一手
+				break;
+			}
 		}
+		
+		//转向请求运作模块
 		if(Car_Turn_ENABLE){
 			if (Car_Turn_Count >= 2)
 			{
@@ -279,23 +316,25 @@ int main(void)
 			}
 		}
 		if (Pre_Flag != Cur_Flag)Pre_Flag = Cur_Flag;
-		/* =================== [END] 控制模块 [END]==================== */		
+		/* =================== [END] 小车行进控制模块 [END]==================== */		
 		
 
-		Serial_Printf("[display,0,0,Yaw]");
-		Serial_Printf("[display,0,20,%+02.3f  ]", Yaw);
-		Serial_Printf("[display,0,40,R     G     B]");
-		Serial_Printf("[display,0,60,%3d   %3d   %3d   ]", R_Dat, G_Dat, B_Dat);
-		Serial_Printf("[display,0,80,S_Angle]");
-		Serial_Printf("[display,0,100,%d  ]", Servo_Angle);
+		
+		
+		/* =================== [START] 数据自动回传模块 [START]==================== */
+		Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
+		Serial_Printf("[display,0,100,%3d   %3d   %3d   ]", R_Dat, G_Dat, B_Dat);
+		Serial_Printf("[display,0,140,%d  ]", Servo_Angle);
 		
 		HCSR04_Distance = HCSR04_GetValue();
 		
-		Serial_Printf("[display,0,120,HCSR04]");
-		Serial_Printf("[display,0,140,%d  ]", HCSR04_Distance);
-//		Serial_Printf("%f,%f,%f\r\n", Roll, Yaw,Pitch);
+		Serial_Printf("[display,0,180,%d  ]", HCSR04_Distance);
+		/* =================== [END] 数据自动回传模块 [END]==================== */
 		
-		/* =================== [START] LED响应颜色识别模块 [START]==================== */
+		
+		
+		
+		/* =================== [START] LED自动响应颜色识别模块 [START]==================== */
 		if (0)//红
 		{
 			Color_Flag = RED;
@@ -324,9 +363,13 @@ int main(void)
 			Color_Flag = OTHERS;
 			LED_OFF_ALL();
 		}		
-		/* =================== [END] LED响应颜色识别模块 [END]==================== */
-	}
-}
+		/* =================== [END] LED自动响应颜色识别模块 [END]==================== */
+		
+		
+		
+		
+	}//while(1)
+}//int main(void)
 
 uint16_t TimeTick;
 
@@ -343,6 +386,7 @@ void TIM1_UP_IRQHandler(void)
 //		LED_Tick();
 		TimeTick ++;
 
+		if (Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
 		//超声波模块HCSR04进程
 		HCSR04_Tick();
 		
