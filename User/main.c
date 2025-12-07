@@ -127,7 +127,7 @@ int main(void)
 	
 	Serial_Printf("[display-clear]");
 	Serial_Printf("[display,0,0,FUNCTION State]");
-	Serial_Printf("[display,0,0,%s]", Mode_Menu[FUNCTION_State]);
+	Serial_Printf("[display,0,20,%s]", Mode_Menu[FUNCTION_State]);
 	Serial_Printf("[display,0,40,Yaw]");
 	Serial_Printf("[display,0,80,R     G     B]");
 	Serial_Printf("[display,0,120,S_Angle]");
@@ -165,6 +165,7 @@ int main(void)
 					//手动/自动模式切换
 					Car_Stop();
 					FUNCTION_State = 1 - FUNCTION_State;
+					Serial_Printf("[display,0,20,%s]", Mode_Menu[FUNCTION_State]);
 				}
 				
 				//手动控制按键状态解析及响应
@@ -175,6 +176,8 @@ int main(void)
 						//只有手动运动控制按键存在松开判定
 						Car_Movtion_Event = STOP;
 						Car_Stop();
+						Car_Turn_Count = 0;
+						Car_Turn_ENABLE = 0;
 					}
 					else if (strcmp(Name, "UP") == 0 && strcmp(Action, "down") == 0)
 					{
@@ -216,6 +219,8 @@ int main(void)
 					{
 						Car_Movtion_Event = STOP;
 						Car_Stop();
+						Car_Turn_Count = 0;
+						Car_Turn_ENABLE = 0;
 					}			
 				}
 			}
@@ -417,8 +422,8 @@ void TIM1_UP_IRQHandler(void)
 //			Roll = 0.001 * RollAcc + (1 - 0.001) * RollGyro;  		// 相同互补滤波算法
 			
 			// 偏航角：仅陀螺仪积分（无加速度计校准，会漂移）
-			if (GZ <= -2 || 2 <= GZ){Yaw += GZ / 32768.0 * 2000 * 0.001;}
-
+//			if (GZ <= -2 || 2 <= GZ){Yaw += GZ / 32768.0 * 2000 * 0.001;}
+			if (GZ <= -2 || 2 <= GZ){Yaw += GZ / 32768.0 * 2050 * 0.001;}
 //			// 俯仰角计算
 //			PitchAcc = -atan2(AX, AZ) / 3.14159 * 180;  			// 俯仰角（绕Y轴）
 //			PitchGyro = Pitch + GY / 32768.0 * 2000 * 0.001;  		// 陀螺仪积分（2000是量程，0.001是1ms采样间隔）
