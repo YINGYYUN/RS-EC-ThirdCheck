@@ -27,6 +27,18 @@ void Self_Right(void)
 	Motor_SetPWM2(-95);
 }
 
+void Self_Left_SET(uint8_t PWM)
+{
+	Motor_SetPWM1(-PWM);
+	Motor_SetPWM2(PWM);
+}
+
+void Self_Right_SET(uint8_t PWM)
+{
+	Motor_SetPWM1(PWM);
+	Motor_SetPWM2(-PWM);
+}
+
 void Car_Stop(void)
 {
 	Motor_SetPWM1(0);

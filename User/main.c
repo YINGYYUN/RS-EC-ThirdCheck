@@ -60,12 +60,12 @@ uint8_t Car_Movtion_Event = 0;
 uint8_t Car_Turn_ENABLE = 0;
 //转向目标角度存储
 float Car_Tar_Yaw = 0.0f;
-//转向工程中运动状态更改次数统计
-uint8_t Car_Turn_Count = 0;
 //运动状态标记
 uint8_t Cur_Flag, Pre_Flag;
 
 uint16_t Car_Movtion_Delay_TimeTick = 0;
+//旋转超时计时
+uint16_t Car_Turn_TimeTick = 0;
 /* ==================== [END] 运动状态控制相关变量定义 [END] ==================== */
 
 
@@ -87,8 +87,10 @@ uint8_t Color_Flag = OTHERS;
 
 
 
+//舵机旋转等待
+uint16_t Servo_Delay_TimeTick = 0;
 //超声波测到的距离
-uint16_t HCSR04_Distance=0;  
+uint8_t HCSR04_Distance=0;  
 
 int main(void)
 {
@@ -137,9 +139,6 @@ int main(void)
 	
 	
 	
-	//似乎可以不关闭？
-	MPU6050_Resolving_ENABLE = 1;
-	
 	while(1)
 	{
 		
@@ -163,7 +162,13 @@ int main(void)
 				if (strcmp(Name, "MODE") == 0 && strcmp(Action, "down") == 0)
 				{
 					//手动/自动模式切换
+					
+					//撤回可能存在的定角度转向请求
+					Car_Turn_ENABLE = 0;
 					Car_Stop();
+				
+					Car_Movtion_Event = STOP;
+					
 					FUNCTION_State = 1 - FUNCTION_State;
 					Serial_Printf("[display,0,20,%s]", Mode_Menu[FUNCTION_State]);
 				}
@@ -173,54 +178,53 @@ int main(void)
 				{
 					if (strcmp(Action, "up") == 0)
 					{
-						//只有手动运动控制按键存在松开判定
-						Car_Movtion_Event = STOP;
+						//只有手动运动控制按键存在松开判定						
 						Car_Stop();
-						Car_Turn_Count = 0;
+						Car_Movtion_Event = STOP;
 						Car_Turn_ENABLE = 0;
 					}
 					else if (strcmp(Name, "UP") == 0 && strcmp(Action, "down") == 0)
 					{
-						Car_Movtion_Event = UP;
 						Go_Ahead();
+						Car_Movtion_Event = UP;					
 					}
 					else if (strcmp(Name, "DOWN") == 0 && strcmp(Action, "down") == 0)
 					{
-						Car_Movtion_Event = DOWN;
 						Go_Back();
+						Car_Movtion_Event = DOWN;				
 					}
 					else if (strcmp(Name, "LEFT") == 0 && strcmp(Action, "down") == 0)
 					{
-						Car_Movtion_Event = LEFT;
 						Self_Left();
+						Car_Movtion_Event = LEFT;					
 					}
 					else if (strcmp(Name, "RIGHT") == 0 && strcmp(Action, "down") == 0)
 					{
-						Car_Movtion_Event = RIGHT;
 						Self_Right();
+						Car_Movtion_Event = RIGHT;						
 					}
 					else if (strcmp(Name, "L_90") == 0 && strcmp(Action, "down") == 0)
-					{
-						Car_Movtion_Event = LEFT_90;
-						
+					{					
 						//发送定角度转向请求
 						Car_Tar_Yaw = Yaw + 90.0f;
 						Car_Turn_ENABLE = 1;
+						Car_Turn_TimeTick = 0;
+						Car_Movtion_Event = LEFT_90;
 					}
 					else if (strcmp(Name, "R_90") == 0 && strcmp(Action, "down") == 0)
-					{
-						Car_Movtion_Event = RIGHT_90;
-						
+					{						
 						//发送定角度转向请求
 						Car_Tar_Yaw = Yaw - 90.0f;
 						Car_Turn_ENABLE = 1;
+						Car_Turn_TimeTick = 0;
+						Car_Movtion_Event = RIGHT_90;
 					}
 					else if (strcmp(Name, "STOP") == 0 && strcmp(Action, "down") == 0)
-					{
-						Car_Movtion_Event = STOP;
+					{						
 						Car_Stop();
-						Car_Turn_Count = 0;
 						Car_Turn_ENABLE = 0;
+						
+						Car_Movtion_Event = STOP;
 					}			
 				}
 			}
@@ -294,30 +298,39 @@ int main(void)
 		}
 		
 		//转向请求运作模块
-		if(Car_Turn_ENABLE){
-			if (Car_Turn_Count >= 2)
+		if(Car_Turn_ENABLE)
+		{
+			//超时叫停
+			if (Car_Turn_TimeTick >= 2200)
 			{
-				Car_Turn_Count = 0;
 				Car_Stop();
 				Car_Turn_ENABLE = 0;
-			}
-			else if(Yaw - Car_Tar_Yaw > 1.0f)
-			{
-				Self_Right();
-				Cur_Flag = F_Self_Right;
-				if (Pre_Flag != Cur_Flag)Car_Turn_Count ++;
-			}
-			else if(Car_Tar_Yaw - Yaw > 1.0f)
-			{
-				Self_Left();
-				Cur_Flag = F_Self_Left;
-				if (Pre_Flag != Cur_Flag)Car_Turn_Count ++;
+				Car_Movtion_Event = STOP;
+				Car_Turn_TimeTick = 0;
 			}
 			else
 			{
-				Car_Turn_Count = 0;
-				Car_Stop();
-				Car_Turn_ENABLE = 0;
+				float yaw_diff = Car_Tar_Yaw - Yaw;
+				float abs_diff = fabs(yaw_diff);
+				
+				//基于目标差值的二级旋转速度
+				uint8_t turn_pwm = (abs_diff > 7.0f) ? 95 : 60;
+				
+				 if(yaw_diff > 0.5f)  // 偏左>0.5°，需左转
+				{
+					Self_Left_SET(turn_pwm);
+				}
+				else if(yaw_diff < -0.5f) // 偏右>0.5°，需右转
+				{
+					Self_Right_SET(turn_pwm);
+				}
+				else
+				{
+					Car_Stop();
+					Car_Turn_ENABLE = 0;
+					Car_Movtion_Event = STOP;
+					Car_Turn_TimeTick = 0;
+				}
 			}
 		}
 		if (Pre_Flag != Cur_Flag)Pre_Flag = Cur_Flag;
@@ -388,10 +401,13 @@ void TIM1_UP_IRQHandler(void)
 		TIM_ClearITPendingBit(TIM1,TIM_IT_Update);
 		//保证数据的及时读取
 		
+		if (Car_Turn_ENABLE) Car_Turn_TimeTick ++;
+		
 //		LED_Tick();
 		TimeTick ++;
 
-		if (Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
+		if (Car_Movtion_Delay_TimeTick !=0)Car_Movtion_Delay_TimeTick --;
+		if (Servo_Delay_TimeTick != 0)Servo_Delay_TimeTick --;
 		//超声波模块HCSR04进程
 		HCSR04_Tick();
 		
@@ -407,14 +423,13 @@ void TIM1_UP_IRQHandler(void)
 		}
 		
 		/* =================== [START] MPU6050解算模块 [START]==================== */
-		if(MPU6050_Resolving_ENABLE)//启用MPU6050
-		{
 			MPU6050_GetGZ(&GZ);
 			
 			//校准零飘
 //			GX += 55;
 //			GY += 18;
 			GZ += 10;
+			if(-2 <= GZ && GZ <= 2){GZ = 0;}
 		
 //			// 横滚角计算
 //			RollAcc = atan2(AY, AZ) / 3.14159 * 180;  				// 横滚角（绕X轴）
@@ -423,12 +438,11 @@ void TIM1_UP_IRQHandler(void)
 			
 			// 偏航角：仅陀螺仪积分（无加速度计校准，会漂移）
 //			if (GZ <= -2 || 2 <= GZ){Yaw += GZ / 32768.0 * 2000 * 0.001;}
-			if (GZ <= -2 || 2 <= GZ){Yaw += GZ / 32768.0 * 2050 * 0.001;}
+			Yaw += GZ / 32768.0 * 2050 * 0.001;
 //			// 俯仰角计算
 //			PitchAcc = -atan2(AX, AZ) / 3.14159 * 180;  			// 俯仰角（绕Y轴）
 //			PitchGyro = Pitch + GY / 32768.0 * 2000 * 0.001;  		// 陀螺仪积分（2000是量程，0.001是1ms采样间隔）
 //			Pitch = 0.001 * PitchAcc + (1 - 0.001) * PitchGyro;  	// 互补滤波
-		}
 		/* =================== [END] MPU6050解算模块 [END]==================== */
 		
 	}

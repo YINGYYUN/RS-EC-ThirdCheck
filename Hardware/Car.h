@@ -5,6 +5,8 @@ void Go_Ahead(void);
 void Go_Back(void);
 void Self_Left(void);
 void Self_Right(void);
+void Self_Left_SET(uint8_t PWM);
+void Self_Right_SET(uint8_t PWM);
 void Car_Stop(void);
 
 #define F_Go_Ahead			0
