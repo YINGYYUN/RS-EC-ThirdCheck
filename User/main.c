@@ -176,6 +176,7 @@ int main(void)
 					//手动/自动模式切换
 					
 					//撤回可能存在的定角度转向请求
+					Car_Turn_TimeTick = 0;
 					Car_Turn_ENABLE = 0;
 					Car_Stop();
 				
@@ -382,7 +383,7 @@ int main(void)
 			//数据目前是测试性质的
 			
 			//判定是否开始左右测距
-			if (Servo_Turn_Flag == 0 && Car_Turn_ENABLE == 0 && HCSR04_Distance[1] <= 14)
+			if (Servo_Turn_Flag == 0 && Car_Turn_ENABLE == 0 && HCSR04_Distance[1] <= 12)
 			{
 				Car_Stop();
 				Car_Movtion_Event = STOP;
@@ -451,7 +452,7 @@ int main(void)
 					Car_Turn_ENABLE = 1;
 					Car_Turn_TimeTick =  4000;
 					Car_Movtion_Event = AROUND;
-				}
+				}				
 				Servo_Turn_Flag = 0;
 			}
 			/* =================== [END] 寻路模块 [END]==================== */
