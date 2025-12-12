@@ -55,6 +55,7 @@ uint8_t Car_Movtion_Event = 0;
 #define RIGHT		4
 #define LEFT_90		5
 #define RIGHT_90	6
+#define AROUND		7
 
 //定角度转向请求挂起标志位
 uint8_t Car_Turn_ENABLE = 0;
@@ -87,10 +88,23 @@ uint8_t Color_Flag = OTHERS;
 
 
 
+/* =================== [START] 舵机旋转模块 [START]==================== */
+//舵机当前角度（每次上电后自动旋转至该角度）
+uint8_t Cur_Servo_Angle = 90;
+//舵机目标角度
+uint8_t Tar_Servo_Angle = 90;
+uint16_t Servo_Need_Wait_Time = 0;
+uint8_t Servo_State = 0;
+uint8_t Servo_Turn_Flag = 0;
+/* =================== [END] 舵机旋转模块 [END]==================== */
+
+
+
+
 //舵机旋转等待
 uint16_t Servo_Delay_TimeTick = 0;
 //超声波测到的距离
-uint8_t HCSR04_Distance=0;  
+uint8_t HCSR04_Distance[3] = {0, 0, 0};  
 
 int main(void)
 {
@@ -101,7 +115,7 @@ int main(void)
 	Motor_Init();
 	HCSR04_Init();
 	
-	LED_OFF_ALL();
+	LED_A_OFF_ALL();
 	
 	Serial_RxFlag = 0;
 	
@@ -112,9 +126,7 @@ int main(void)
 
 	Timer_Init();
 	
-	//舵机角度
-	uint8_t Servo_Angle = 90;
-	Servo_SetAngle(Servo_Angle);
+	Servo_SetAngle(Cur_Servo_Angle);
 	
 	
 	
@@ -169,6 +181,12 @@ int main(void)
 				
 					Car_Movtion_Event = STOP;
 					
+					Servo_Turn_Flag = 0;
+					Servo_State = 0;
+					Servo_Need_Wait_Time = 0;
+					Cur_Servo_Angle = 90;
+					Servo_SetAngle(Cur_Servo_Angle);
+					
 					FUNCTION_State = 1 - FUNCTION_State;
 					Serial_Printf("[display,0,20,%s]", Mode_Menu[FUNCTION_State]);
 				}
@@ -208,7 +226,7 @@ int main(void)
 						//发送定角度转向请求
 						Car_Tar_Yaw = Yaw + 90.0f;
 						Car_Turn_ENABLE = 1;
-						Car_Turn_TimeTick = 0;
+						Car_Turn_TimeTick = 2200;
 						Car_Movtion_Event = LEFT_90;
 					}
 					else if (strcmp(Name, "R_90") == 0 && strcmp(Action, "down") == 0)
@@ -216,7 +234,7 @@ int main(void)
 						//发送定角度转向请求
 						Car_Tar_Yaw = Yaw - 90.0f;
 						Car_Turn_ENABLE = 1;
-						Car_Turn_TimeTick = 0;
+						Car_Turn_TimeTick = 2200;
 						Car_Movtion_Event = RIGHT_90;
 					}
 					else if (strcmp(Name, "STOP") == 0 && strcmp(Action, "down") == 0)
@@ -253,12 +271,12 @@ int main(void)
 //					float FloatValue = atof(Value);				
 //					KD = FloatValue;
 //				}
-				if (strcmp(Name, "S_Angle") == 0)
+				if (FUNCTION_State == Flag_Manual_Mode && strcmp(Name, "S_Angle") == 0)
 				{
 					int IntValue = atoi(Value);				
-					Servo_Angle = 180 - IntValue;
+					Cur_Servo_Angle = IntValue;
 					
-					Servo_SetAngle(Servo_Angle);
+					Servo_SetAngle(Cur_Servo_Angle);
 				}
 			}
 			
@@ -271,42 +289,16 @@ int main(void)
 		
 		
 		
-		/* =================== [START] 小车行进控制模块 [START]==================== */
-		switch (FUNCTION_State)
-		{
-			//手动控制
-			case Flag_Manual_Mode:
-			{
-				//大部分逻辑干脆转到蓝牙解析里面了
-				
-				break;
-			}
-			
-			//自动控制
-			case Flag_Auto_Mode:
-			{
-				Car_Movtion_Delay_TimeTick = 0;
-				
-				break;
-			}
-			
-			default:
-			{
-				//留一手
-				break;
-			}
-		}
-		
+		/* =================== [START] 小车定角度旋转控制模块 [START]==================== */
 		//转向请求运作模块
 		if(Car_Turn_ENABLE)
 		{
-			//超时叫停
-			if (Car_Turn_TimeTick >= 2200)
+			//超时强制叫停
+			if (Car_Turn_TimeTick == 0)
 			{
 				Car_Stop();
 				Car_Turn_ENABLE = 0;
 				Car_Movtion_Event = STOP;
-				Car_Turn_TimeTick = 0;
 			}
 			else
 			{
@@ -334,7 +326,7 @@ int main(void)
 			}
 		}
 		if (Pre_Flag != Cur_Flag)Pre_Flag = Cur_Flag;
-		/* =================== [END] 小车行进控制模块 [END]==================== */		
+		/* =================== [END] 小车定角度旋转控制模块 [END]==================== */		
 		
 
 		
@@ -342,11 +334,8 @@ int main(void)
 		/* =================== [START] 数据自动回传模块 [START]==================== */
 		Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
 		Serial_Printf("[display,0,100,%3d   %3d   %3d   ]", R_Dat, G_Dat, B_Dat);
-		Serial_Printf("[display,0,140,%d  ]", Servo_Angle);
-		
-		HCSR04_Distance = HCSR04_GetValue();
-		
-		Serial_Printf("[display,0,180,%d  ]", HCSR04_Distance);
+		Serial_Printf("[display,0,140,%d  ]", Cur_Servo_Angle);	
+		Serial_Printf("[display,0,180,%d, %d, %d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
 		/* =================== [END] 数据自动回传模块 [END]==================== */
 		
 		
@@ -356,33 +345,117 @@ int main(void)
 		if (0)//红
 		{
 			Color_Flag = RED;
-			LED_OFF_ALL();
+			LED_A_OFF_ALL();
 			LED_ON_SET(3);
 		}
 		else if(0)//绿
 		{
 			Color_Flag = GREEN;
-			LED_OFF_ALL();
+			LED_A_OFF_ALL();
 			LED_ON_SET(2);			
 		}
 		else if(0)//蓝
 		{
 			Color_Flag = BLUE;
-			LED_OFF_ALL();
+			LED_A_OFF_ALL();
 			LED_ON_SET(1);			
 		}
 		else if(0)//黑
 		{
 			Color_Flag = BLACK;
-			LED_ON_ALL();
+			LED_A_ON_ALL();
 		}
 		else //其他
 		{
 			Color_Flag = OTHERS;
-			LED_OFF_ALL();
+			LED_A_OFF_ALL();
 		}		
 		/* =================== [END] LED自动响应颜色识别模块 [END]==================== */
 		
+		
+		
+		if (FUNCTION_State == Flag_Auto_Mode)
+		{
+			/* =================== [START] 测距模块 [START]==================== */
+			//HCSR04_Distance有三个元素，分别对应	左[0]	中[1]	右[2]	
+			HCSR04_Distance[1] = HCSR04_GetValue();
+			//数据目前是测试性质的
+			
+			//判定是否开始左右测距
+			if (Servo_Turn_Flag == 0 && Car_Turn_ENABLE == 0 && HCSR04_Distance[1] <= 14)
+			{
+				Car_Stop();
+				Car_Movtion_Event = STOP;
+				Servo_Turn_Flag = 1;
+				Servo_Need_Wait_Time = 3000;
+				Servo_State = 0;				
+			}
+			//运行舵机左右测距请求
+			if(Servo_Turn_Flag)
+			{
+				if (2000 < Servo_Need_Wait_Time && Servo_Need_Wait_Time <= 3000 && Servo_State == 0)
+				{
+					Servo_SetAngle(180);				
+					Servo_State = 1;
+				}
+				else if (1000 < Servo_Need_Wait_Time && Servo_Need_Wait_Time <= 2000 && Servo_State == 1)
+				{
+					HCSR04_Distance[0] = HCSR04_GetValue();
+					Servo_SetAngle(0);
+					Servo_State = 2;
+				}
+				else if (0 < Servo_Need_Wait_Time && Servo_Need_Wait_Time <= 1000 && Servo_State == 2)
+				{
+					HCSR04_Distance[2] = HCSR04_GetValue();
+					Servo_SetAngle(90);
+					Servo_State = 3;
+				}
+				else if (Servo_Need_Wait_Time == 0 && Servo_State == 3)
+				{
+					Servo_Turn_Flag = 2;
+				}
+			}
+			/* =================== [END] 测距模块 [END]==================== */
+			
+			
+			
+			
+			/* =================== [START] 寻路模块 [START]==================== */
+			if (Servo_Turn_Flag == 0)
+			{
+				Go_Ahead();
+				Car_Movtion_Event = UP;
+			}
+			else if (Servo_Turn_Flag == 2)		
+			{
+				if (HCSR04_Distance[0] >= 14)
+				{
+					//发送定角度转向请求
+					Car_Tar_Yaw = Yaw + 90.0f;
+					Car_Turn_ENABLE = 1;
+					Car_Turn_TimeTick = 2200;
+					Car_Movtion_Event = LEFT_90;
+				}
+				else if (HCSR04_Distance[2] >= 14)
+				{
+					//发送定角度转向请求
+					Car_Tar_Yaw = Yaw - 90.0f;
+					Car_Turn_ENABLE = 1;
+					Car_Turn_TimeTick = 2200;
+					Car_Movtion_Event = RIGHT_90;
+				}
+				else 
+				{
+					//发送定角度转向请求
+					Car_Tar_Yaw = Yaw - 180.0f;
+					Car_Turn_ENABLE = 1;
+					Car_Turn_TimeTick =  4000;
+					Car_Movtion_Event = AROUND;
+				}
+				Servo_Turn_Flag = 0;
+			}
+			/* =================== [END] 寻路模块 [END]==================== */
+		}
 		
 		
 		
@@ -390,6 +463,7 @@ int main(void)
 }//int main(void)
 
 uint16_t TimeTick;
+//uint8_t Servo_Test_State = 0;
 
 //1ms的定时中断
 void TIM1_UP_IRQHandler(void)
@@ -401,13 +475,35 @@ void TIM1_UP_IRQHandler(void)
 		TIM_ClearITPendingBit(TIM1,TIM_IT_Update);
 		//保证数据的及时读取
 		
-		if (Car_Turn_ENABLE) Car_Turn_TimeTick ++;
-		
 //		LED_Tick();
 		TimeTick ++;
 
-		if (Car_Movtion_Delay_TimeTick !=0)Car_Movtion_Delay_TimeTick --;
-		if (Servo_Delay_TimeTick != 0)Servo_Delay_TimeTick --;
+//		if (2000 < Servo_Need_Wait_Time && Servo_Need_Wait_Time <= 3000 && Servo_Test_State == 0)
+//		{
+//			Servo_SetAngle(0);          // 首次进入该区间，执行一次角度设置
+//			Servo_Test_State = 1;       // 切换状态，避免重复执行
+//		}
+//		else if (1000 < Servo_Need_Wait_Time && Servo_Need_Wait_Time <= 2000 && Servo_Test_State == 1)
+//		{
+//			Servo_SetAngle(180);        // 首次进入该区间，执行一次角度设置
+//			Servo_Test_State = 2;       // 切换状态
+//		}
+//		else if (0 < Servo_Need_Wait_Time && Servo_Need_Wait_Time <= 1000 && Servo_Test_State == 2)
+//		{
+//			Servo_SetAngle(90);         // 首次进入该区间，执行一次角度设置
+//			Servo_Test_State = 3;       
+//		}
+//		else if (Servo_Need_Wait_Time == 0 && Servo_Test_State == 3)
+//		{
+//			Servo_Need_Wait_Time = 3000;// 重置为初始值，开始下一轮循环
+//			Servo_Test_State = 0;       // 重置状态
+//		}
+		
+		
+		if (Car_Turn_TimeTick > 0) Car_Turn_TimeTick --;
+		if (Servo_Need_Wait_Time > 0)Servo_Need_Wait_Time --;
+		if (Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
+		if (Servo_Delay_TimeTick > 0)Servo_Delay_TimeTick --;
 		//超声波模块HCSR04进程
 		HCSR04_Tick();
 		

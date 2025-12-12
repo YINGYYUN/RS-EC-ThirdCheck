@@ -9,7 +9,8 @@ typedef struct {
 const LED_Pindef LED_Pinlist[LED_NUM] = {
 	{GPIOA, LED_PIN_1},
 	{GPIOA, LED_PIN_2},
-	{GPIOA, LED_PIN_3}
+	{GPIOA, LED_PIN_3},
+	{GPIOC, LED_PIN_4}
 };
 
 void LED_Init(void)
@@ -17,7 +18,7 @@ void LED_Init(void)
 	//配置RCC
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 //	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-//	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
 	
 	//配置GPIO
 	GPIO_InitTypeDef GPIO_InitStructure;
@@ -27,12 +28,12 @@ void LED_Init(void)
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
 //	GPIO_InitStructure.GPIO_Pin = LED;
 //	GPIO_Init(GPIOB, &GPIO_InitStructure);
-//	GPIO_InitStructure.GPIO_Pin = LED;
-//	GPIO_Init(GPIOC, &GPIO_InitStructure);
+	GPIO_InitStructure.GPIO_Pin = LED_PIN_4;
+	GPIO_Init(GPIOC, &GPIO_InitStructure);
 	
-	GPIO_SetBits(GPIOA, LED_ALL_PINS);    //多个端口之间相或
+	GPIO_SetBits(GPIOA, LED_PIN_1 | LED_PIN_2 | LED_PIN_3);    //多个端口之间相或
 //	GPIO_SetBits(GPIOB, LED);
-//	GPIO_SetBits(GPIOC, LED);
+	GPIO_SetBits(GPIOC, LED_PIN_4);
 	
 //	LED_GPIO[1] = LED_GPIOA;  LED_Pin[1] = LED1;
 //	LED_GPIO[2] = LED_GPIOA;  LED_Pin[2] = LED2;
@@ -51,12 +52,12 @@ void LED_ON_SET(uint8_t Num)
 	GPIO_ResetBits(LED_Pinlist[Num - 1].GPIOx, LED_Pinlist[Num - 1].GPIO_Pin);
 }
 
-void LED_OFF_ALL(void)
+void LED_A_OFF_ALL(void)
 {
-	GPIO_SetBits(GPIOA, LED_ALL_PINS);
+	GPIO_SetBits(GPIOA, LED_PIN_1 | LED_PIN_2 | LED_PIN_3);
 }
 
-void LED_ON_ALL(void)
+void LED_A_ON_ALL(void)
 {
-	GPIO_ResetBits(GPIOA, LED_ALL_PINS);
+	GPIO_ResetBits(GPIOA, LED_PIN_1 | LED_PIN_2 | LED_PIN_3);
 }
