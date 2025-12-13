@@ -15,6 +15,18 @@ void Go_Back(void)
 	Motor_SetPWM2(-95);
 }
 
+void Go_Ahead_SET(uint8_t PWM)
+{
+	Motor_SetPWM1(PWM);
+	Motor_SetPWM2(PWM);
+}
+
+void Go_Back_SET(uint8_t PWM)
+{
+	Motor_SetPWM1(-PWM);
+	Motor_SetPWM2(-PWM);
+}
+
 void Self_Left(void)
 {
 	Motor_SetPWM1(-95);

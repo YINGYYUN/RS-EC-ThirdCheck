@@ -143,9 +143,10 @@ int main(void)
 	Serial_Printf("[display,0,0,FUNCTION State]");
 	Serial_Printf("[display,0,20,%s]", Mode_Menu[FUNCTION_State]);
 	Serial_Printf("[display,0,40,Yaw]");
-	Serial_Printf("[display,0,80,R     G     B]");
+	Serial_Printf("[display,0,80, R   G   B]");
 	Serial_Printf("[display,0,120,S_Angle]");
 	Serial_Printf("[display,0,160,HCSR04]");
+	Serial_Printf("[display,0,200,     |     ]");
 /* =================== [END] 菜单初始化模块 [END] =================== */	
 	
 	
@@ -255,29 +256,25 @@ int main(void)
 				char * Name = strtok(NULL, ",");
 				char * Value = strtok(NULL, ",");
 				
-//				if (strcmp(Name, "KP") == 0)
-//				{
-//					float FloatValue = atof(Value);					
-//					KP = FloatValue;
-//				}
-//				else
-//				if (strcmp(Name, "KI") == 0)
-//				{
-//					float FloatValue = atof(Value);				
-//					KI = FloatValue;
-//				}
-//				else 
-//				if (strcmp(Name, "KD") == 0)
-//				{
-//					float FloatValue = atof(Value);				
-//					KD = FloatValue;
-//				}
 				if (FUNCTION_State == Flag_Manual_Mode && strcmp(Name, "S_Angle") == 0)
 				{
 					int IntValue = atoi(Value);				
 					Cur_Servo_Angle = IntValue;
 					
 					Servo_SetAngle(Cur_Servo_Angle);
+					
+					if (Cur_Servo_Angle == 90)
+					{
+						Serial_Printf("[display,0,200,     |     ]");
+					}
+					else if (Cur_Servo_Angle > 90)
+					{
+						Serial_Printf("[display,0,200, |         ]");
+					}
+					else 
+					{
+						Serial_Printf("[display,0,200,         | ]");
+					}			
 				}
 			}
 			
@@ -334,9 +331,9 @@ int main(void)
 		
 		/* =================== [START] 数据自动回传模块 [START]==================== */
 		Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
-		Serial_Printf("[display,0,100,%3d   %3d   %3d   ]", R_Dat, G_Dat, B_Dat);
-		Serial_Printf("[display,0,140,%d  ]", Cur_Servo_Angle);	
-		Serial_Printf("[display,0,180,%d, %d, %d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
+		Serial_Printf("[display,0,100,%03d %3d %03d]", R_Dat, G_Dat, B_Dat);
+		Serial_Printf("[display,0,140,%d ]", Cur_Servo_Angle);	
+		Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
 		/* =================== [END] 数据自动回传模块 [END]==================== */
 		
 		
@@ -375,9 +372,40 @@ int main(void)
 		
 		
 		
+		
+		if (FUNCTION_State == Flag_Manual_Mode)
+		{
+			
+			
+			
+						
+			/* =================== [START] 手动控制测距模块 [START]==================== */
+			if (Cur_Servo_Angle == 90)
+			{
+				HCSR04_Distance[1] = HCSR04_GetValue();
+			}
+			else if (Cur_Servo_Angle > 90)
+			{
+				HCSR04_Distance[0] = HCSR04_GetValue();
+			}
+			else 
+			{
+				HCSR04_Distance[2] = HCSR04_GetValue();
+			}			
+			/* =================== [START] 手动控制测距模块 [START]==================== */
+			
+			
+			
+						
+		}
+		
 		if (FUNCTION_State == Flag_Auto_Mode)
 		{
-			/* =================== [START] 测距模块 [START]==================== */
+			
+			
+			
+			
+			/* =================== [START] 自动测距模块 [START]==================== */
 			//HCSR04_Distance有三个元素，分别对应	左[0]	中[1]	右[2]	
 			HCSR04_Distance[1] = HCSR04_GetValue();
 			//数据目前是测试性质的
@@ -416,7 +444,7 @@ int main(void)
 					Servo_Turn_Flag = 2;
 				}
 			}
-			/* =================== [END] 测距模块 [END]==================== */
+			/* =================== [END] 自动测距模块 [END]==================== */
 			
 			
 			
@@ -456,6 +484,10 @@ int main(void)
 				Servo_Turn_Flag = 0;
 			}
 			/* =================== [END] 寻路模块 [END]==================== */
+			
+			
+			
+			
 		}
 		
 		
