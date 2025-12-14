@@ -193,6 +193,9 @@ int main(void)
 				//手动/自动模式切换
 				if (strcmp(Name, "MODE") == 0 && strcmp(Action, "down") == 0)
 				{				
+					//撤回可能存在的直行请求
+					Car_StraightRun_Falg = 0;
+					
 					//撤回可能存在的定角度转向请求
 					Car_Turn_TimeTick = 0;
 					Car_Turn_ENABLE = 0;
@@ -212,6 +215,10 @@ int main(void)
 						Cur_Servo_Angle = 90;
 						Servo_SetAngle(Cur_Servo_Angle);
 						Servo_TimeTick = 4000;				
+					}
+					else
+					{
+						Servo_Turn_Flag = 0;
 					}
 				}
 				
@@ -453,6 +460,7 @@ int main(void)
 				//到墙
 				if (HCSR04_Distance[1] <= 5)
 				{
+					Car_StraightRun_Falg = 0;
 					Car_Stop();
 					Car_Movtion_Event = STOP;
 					Servo_Turn_Flag = 1;
@@ -545,10 +553,14 @@ int main(void)
 			
 			/* =================== [START] (自动模式)直行请求响应模块 [START]==================== */
 			//在小车定角度旋转结束的前提下
-			if (Car_Turn_ENABLE == 0 && Car_StraightRun_Falg)
+			if (Car_Turn_ENABLE == 0 && Car_StraightRun_Falg == 1)
 			{
 				Go_Ahead_SET(95);
-				Car_Movtion_Event = UP;		
+				Car_Movtion_Event = UP;
+				Car_StraightRun_Falg = 2;
+			}
+			else if (Car_StraightRun_Falg == 2)
+			{
 				//直行超时
 				if (Car_Movtion_Delay_TimeTick == 0)
 				{
