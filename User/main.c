@@ -116,6 +116,7 @@ uint8_t Servo_Turn_Flag = 0;
 
 //超声波测到的距离
 uint8_t HCSR04_Distance[3] = {0, 0, 0};  
+uint8_t Force_ENABLE = 0;
 
 int main(void)
 {
@@ -165,7 +166,7 @@ int main(void)
 	
 	while(1)
 	{
-		//时间间隔测试保留
+//		//时间间隔测试保留
 //		if (Car_Movtion_Delay_TimeTick == 0 && Car_Movtion_Delay_Flag == 1)
 //		{
 //			Car_Stop();
@@ -202,7 +203,8 @@ int main(void)
 					Car_Stop();
 					
 					Car_Movtion_Event = STOP;
-											
+					
+					//模式标志位更改
 					FUNCTION_State = 1 - FUNCTION_State;
 					Serial_Printf("[display,0,20,%s]", Mode_Menu[FUNCTION_State]);
 					
@@ -210,6 +212,10 @@ int main(void)
 					if(FUNCTION_State == Flag_Auto_Mode)
 					{
 						//舵机先旋转测距
+						HCSR04_Distance[0] = 0;
+						HCSR04_Distance[1] = 0;
+						HCSR04_Distance[2] = 0;
+						
 						Servo_Turn_Flag = 1;
 						Servo_State = 0;
 						Cur_Servo_Angle = 90;
@@ -238,7 +244,7 @@ int main(void)
 						Go_Ahead_SET(95);
 						Car_Movtion_Event = UP;		
 						
-						//时间间隔测试保留
+//						//时间间隔测试保留
 //						Car_Movtion_Delay_Flag = 1;
 //						Car_Movtion_Delay_TimeTick = 1400;
 						
@@ -280,14 +286,21 @@ int main(void)
 						Car_Turn_ENABLE = 0;
 						
 						Car_Movtion_Event = STOP;
-					}			
+					}
+					else if (strcmp(Name, "Servo") == 0 && strcmp(Action, "down") == 0)
+					{
+						Servo_Turn_Flag = 1;
+						Servo_State = 1;
+						Force_ENABLE = 1;
+						Servo_TimeTick = 3000;
+					}
 				}
 			}
 			
 			//滑杆解析
 			else 
 			if (strcmp(Tag, "slider") == 0)
-			{
+			{				
 				char * Name = strtok(NULL, ",");
 				char * Value = strtok(NULL, ",");
 				
@@ -336,6 +349,14 @@ int main(void)
 				Car_Stop();
 				Car_Turn_ENABLE = 0;
 				Car_Movtion_Event = STOP;
+				
+				//自动模式下尝试强制直行
+				if (FUNCTION_State == Flag_Auto_Mode)
+				{
+					Car_StraightRun_Falg = 1;
+					Car_Movtion_Delay_TimeTick = 1400;
+					Car_Movtion_Event = UP;		
+				}
 			}
 			//旋转
 			else
@@ -359,8 +380,15 @@ int main(void)
 					//完成定角度旋转
 					Car_Stop();
 					Car_Turn_ENABLE = 0;
-					Car_Movtion_Event = STOP;
 					Car_Turn_TimeTick = 0;
+					
+					//自动模式下尝试强制直行
+					if (FUNCTION_State == Flag_Auto_Mode)
+					{
+						Car_StraightRun_Falg = 1;
+						Car_Movtion_Delay_TimeTick = 1400;
+						Car_Movtion_Event = UP;		
+					}
 				}
 			}
 		}
@@ -370,16 +398,21 @@ int main(void)
 		
 		
 		/* =================== [START] (全模式)传感器数据自动回传模块 [START]==================== */
+//		Serial_Printf("[display,0,60,%d  ]",(int)GZ);
 		Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
-		Serial_Printf("[display,0,100,%03d %3d %03d]", R_Dat, G_Dat, B_Dat);
-		Serial_Printf("[display,0,140,%d ]", Cur_Servo_Angle);	
-		Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
+//		Serial_Printf("[display,0,100,%03d %3d %03d]", R_Dat, G_Dat, B_Dat);
+//		Serial_Printf("[display,0,140,%d ]", Cur_Servo_Angle);
+		if (FUNCTION_State == Flag_Manual_Mode)
+		{
+			Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
+		}
 		/* =================== [END] (全模式)传感器数据自动回传模块 [END]==================== */
 		
 		
 		
 		
 		/* =================== [START] (全模式)LED自动响应颜色识别模块 [START]==================== */
+		//根据RGB判定
 		if (0)//红
 		{
 			Color_Flag = RED;
@@ -441,7 +474,7 @@ int main(void)
 		}
 		
 		//自动模式
-		if (FUNCTION_State == Flag_Auto_Mode)
+		if (FUNCTION_State == Flag_Auto_Mode || Force_ENABLE)
 		{
 			//优先级：定角度旋转>旋转测距>直行
 			//定角度旋转屏蔽测距
@@ -453,12 +486,13 @@ int main(void)
 			/* =================== [START] (自动模式)自动测距模块 [START]==================== */
 			//HCSR04_Distance有三个元素，分别对应	左[0]	中[1]	右[2]	
 			
-			//舵机和小车无旋转时判定是否直行到墙
+			//舵机和小车无旋转
 			if (Servo_Turn_Flag == 0 && Car_Turn_ENABLE == 0)
 			{
 				HCSR04_Distance[1] = HCSR04_GetValue();
+				Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
 				//到墙
-				if (HCSR04_Distance[1] <= 5)
+				if (HCSR04_Distance[1] <= 4 && HCSR04_Distance[1] != 0)
 				{
 					Car_StraightRun_Falg = 0;
 					Car_Stop();
@@ -466,19 +500,21 @@ int main(void)
 					Servo_Turn_Flag = 1;
 					Servo_TimeTick = 3000;
 					Servo_State = 1;			
-				}					
+				}
 			}
 			//运行舵机左前右测距请求
 			if(Servo_Turn_Flag == 1)
 			{
+				//启动流程
 				if	(3000 < Servo_TimeTick && Servo_TimeTick <= 3200 && Servo_State == 0)
 				{
 					HCSR04_Distance[1] = HCSR04_GetValue();
 					Servo_State = 1;
-				}				
+				}	
+				//正常流程
 				else if (2000 < Servo_TimeTick && Servo_TimeTick <= 3000 && Servo_State == 1)
 				{
-					Servo_SetAngle(180);				
+					Servo_SetAngle(180);
 					Servo_State = 2;
 				}
 				else if (1000 < Servo_TimeTick && Servo_TimeTick <= 2000 && Servo_State == 2)
@@ -495,10 +531,18 @@ int main(void)
 				}
 				else if (Servo_TimeTick == 0 && Servo_State == 4)
 				{
+					//等待重置状态
+					Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
 					Servo_Turn_Flag = 2;
 				}
 			}
 			/* =================== [END] (自动模式)自动测距模块 [END]==================== */
+			
+			
+			
+		}
+		if (FUNCTION_State == Flag_Auto_Mode)
+		{
 			
 			
 			
@@ -508,32 +552,28 @@ int main(void)
 			if (Servo_Turn_Flag == 2)		
 			{
 				//右
-				if (HCSR04_Distance[2] >= 14)
+				if (HCSR04_Distance[2] >= 18)
 				{
 					//发送定角度转向请求
 					Car_Tar_Yaw = Yaw - 90.0f;
 					Car_Turn_ENABLE = 1;
 					Car_Turn_TimeTick = 2200;
 					Car_Movtion_Event = RIGHT_90;
-					Car_StraightRun_Falg = 1;
-					Car_Movtion_Delay_TimeTick = 1400;
 				}
 				//前
-				else if (HCSR04_Distance[1] >= 14)
+				else if (HCSR04_Distance[1] >= 10)
 				{
 					Car_StraightRun_Falg = 1;
 					Car_Movtion_Delay_TimeTick = 1400;
 				}
 				//左
-				else if (HCSR04_Distance[0] >= 14)
+				else if (HCSR04_Distance[0] >= 18)
 				{
 					//发送定角度转向请求
 					Car_Tar_Yaw = Yaw + 90.0f;
 					Car_Turn_ENABLE = 1;
 					Car_Turn_TimeTick = 2200;
 					Car_Movtion_Event = LEFT_90;
-					Car_StraightRun_Falg = 1;
-					Car_Movtion_Delay_TimeTick = 1400;
 				}
 				//后
 				else 
@@ -605,7 +645,8 @@ void TIM1_UP_IRQHandler(void)
 		TimeTick ++;
 		if (Car_Turn_TimeTick > 0) Car_Turn_TimeTick --;
 		if (Servo_TimeTick > 0)Servo_TimeTick --;
-		if (Car_StraightRun_Falg && Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
+		if (Car_StraightRun_Falg == 2 && Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
+//		if (Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
 		//超声波模块HCSR04进程
 		HCSR04_Tick();
 		
@@ -626,9 +667,10 @@ void TIM1_UP_IRQHandler(void)
 			//校准零飘
 //			GX += 55;
 //			GY += 18;
-			GZ += 10;
-			if(-2 <= GZ && GZ <= 2){GZ = 0;}
-		
+			GZ += 8;
+					
+			if(-1 < GZ && GZ < 2){GZ = 0;}
+					
 //			// 横滚角计算
 //			RollAcc = atan2(AY, AZ) / 3.14159 * 180;  				// 横滚角（绕X轴）
 //			RollGyro = Roll + GX / 32768.0 * 2000 * 0.001;  		// 陀螺仪X轴积分
@@ -637,6 +679,7 @@ void TIM1_UP_IRQHandler(void)
 			// 偏航角：仅陀螺仪积分（无加速度计校准，会漂移）
 //			if (GZ <= -2 || 2 <= GZ){Yaw += GZ / 32768.0 * 2000 * 0.001;}
 			Yaw += GZ / 32768.0 * 2050 * 0.001;
+			
 //			// 俯仰角计算
 //			PitchAcc = -atan2(AX, AZ) / 3.14159 * 180;  			// 俯仰角（绕Y轴）
 //			PitchGyro = Pitch + GY / 32768.0 * 2000 * 0.001;  		// 陀螺仪积分（2000是量程，0.001是1ms采样间隔）
