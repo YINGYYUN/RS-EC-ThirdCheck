@@ -308,6 +308,8 @@ int main(void)
 						Servo_State = 1;
 						Force_ENABLE = 1;
 						Servo_TimeTick = 4400;
+						HCSR04_Sample_ENABLE=0; 
+						HCSR04_Sample_State=0;
 					}
 				}
 			}
@@ -671,7 +673,9 @@ int main(void)
 			{
 				//空数据
 				HCSR04_History[0] = HCSR04_GetValue();
-				HCSR04_Sample_Count ++;
+				HCSR04_StartMeasure();
+				HCSR04_Sample_Count = 0;
+				HCSR04_History[1]=HCSR04_History[2]=HCSR04_History[3]=0;
 				HCSR04_Sample_TimeTick = 62;
 				
 				HCSR04_Sample_State = 1;
@@ -679,6 +683,7 @@ int main(void)
 			else if (HCSR04_Sample_State == 1 && HCSR04_Sample_TimeTick == 0)
 			{
 				HCSR04_History[1] = HCSR04_GetValue();
+				HCSR04_StartMeasure();
 				if (HCSR04_History[1]) {HCSR04_Sample_Count ++;}
 				HCSR04_Sample_TimeTick = 62;
 				
@@ -687,6 +692,7 @@ int main(void)
 			else if (HCSR04_Sample_State == 2 && HCSR04_Sample_TimeTick == 0)
 			{
 				HCSR04_History[2] = HCSR04_GetValue();
+				HCSR04_StartMeasure();
 				if (HCSR04_History[2]) {HCSR04_Sample_Count ++;}
 				HCSR04_Sample_TimeTick = 62;
 				
@@ -695,12 +701,13 @@ int main(void)
 			else if (HCSR04_Sample_State == 3 && HCSR04_Sample_TimeTick == 0)
 			{
 				HCSR04_History[3] = HCSR04_GetValue();
-				if (HCSR04_History[3]) {HCSR04_Sample_Count ++;}
-						
-				HCSR04_Sample_State = 3;
+				if (HCSR04_History[3]) {HCSR04_Sample_Count ++;}								
+				if (HCSR04_Sample_Count)
+				{
+					HCSR04_Distance[HCSR04_Target] = (HCSR04_History[1] + HCSR04_History[2] + HCSR04_History[3]) / 1.0 / HCSR04_Sample_Count;
+				}
 				
-				HCSR04_Distance[HCSR04_Target] = (HCSR04_History[1] + HCSR04_History[2] + HCSR04_History[3]) / 1.0 / HCSR04_Sample_Count;
-				
+				HCSR04_Sample_State	= 0;	
 				HCSR04_Sample_ENABLE = 0;			
 			}
 		}
