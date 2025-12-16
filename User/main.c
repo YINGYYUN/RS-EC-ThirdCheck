@@ -235,7 +235,7 @@ int main(void)
 						Servo_State = 0;
 						Cur_Servo_Angle = 90;
 						Servo_SetAngle(Cur_Servo_Angle);
-						Servo_TimeTick = 5600;				
+						Servo_TimeTick = 5660;				
 					}
 					else
 					{
@@ -307,7 +307,7 @@ int main(void)
 						Servo_Turn_Flag = 1;
 						Servo_State = 1;
 						Force_ENABLE = 1;
-						Servo_TimeTick = 4400;
+						Servo_TimeTick = 4660;
 						HCSR04_Sample_ENABLE=0; 
 						HCSR04_Sample_State=0;
 					}
@@ -515,15 +515,15 @@ int main(void)
 					Car_Stop();
 					Car_Movtion_Event = STOP;
 					Servo_Turn_Flag = 1;
-					Servo_TimeTick = 4400;
-					Servo_State = 1;			
+					Servo_TimeTick = 4660;
+					Servo_State = 0;			
 				}
 			}
 			//运行舵机左前右测距请求
 			if(Servo_Turn_Flag == 1)
 			{
-				//模式切换后的第一次测距
-				if	(4400 < Servo_TimeTick && Servo_TimeTick <= 4600 && Servo_State == 0)
+				//模式切换后存在额外的一次旋转等待，这里的代码段是没有体现的
+				if	(4460 < Servo_TimeTick && Servo_TimeTick <= 4660 && Servo_State == 0)
 				{
 					if (HCSR04_Sample_ENABLE == 0) 
 					{
@@ -533,13 +533,12 @@ int main(void)
 					}
 					Servo_State = 1;
 				}	
-				//正常流程
-				else if (3400 < Servo_TimeTick && Servo_TimeTick <= 4400 && Servo_State == 1)
+				else if (3460 < Servo_TimeTick && Servo_TimeTick <= 4460 && Servo_State == 1)
 				{
 					Servo_SetAngle(180);
 					Servo_State = 2;
 				}
-				else if (3200 < Servo_TimeTick && Servo_TimeTick <= 3400 && Servo_State == 2)
+				else if (3260 < Servo_TimeTick && Servo_TimeTick <= 3460 && Servo_State == 2)
 				{
 					if (HCSR04_Sample_ENABLE == 0) 
 					{
@@ -549,12 +548,12 @@ int main(void)
 					}
 					Servo_State = 3;
 				}
-				else if (1200 < Servo_TimeTick && Servo_TimeTick <= 3200 && Servo_State == 3)
+				else if (1260 < Servo_TimeTick && Servo_TimeTick <= 3260 && Servo_State == 3)
 				{					
 					Servo_SetAngle(0);
 					Servo_State = 4;
 				}
-				else if (1000 < Servo_TimeTick && Servo_TimeTick <= 1200 && Servo_State == 4)
+				else if (1060 < Servo_TimeTick && Servo_TimeTick <= 1260 && Servo_State == 4)
 				{		
 					if (HCSR04_Sample_ENABLE == 0) 
 					{
@@ -564,12 +563,17 @@ int main(void)
 					}
 					Servo_State = 5;
 				}
-				else if (0 < Servo_TimeTick && Servo_TimeTick <= 1000 && Servo_State == 5)
+				else if (60 < Servo_TimeTick && Servo_TimeTick <= 1060 && Servo_State == 5)
 				{					
 					Servo_SetAngle(90);
 					Servo_State = 6;
 				}
-				else if (Servo_TimeTick == 0 && Servo_State == 6)
+				else if (0 < Servo_TimeTick && Servo_TimeTick <= 60 && Servo_State == 6)
+				{					
+					HCSR04_StartMeasure();
+					Servo_State = 7;
+				}
+				else if (Servo_TimeTick == 0 && Servo_State == 7)
 				{
 					//等待重置状态
 					Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
@@ -652,8 +656,8 @@ int main(void)
 					
 					//开始舵机旋转测距
 					Servo_Turn_Flag = 1;
-					Servo_TimeTick = 4400;
-					Servo_State = 1;	
+					Servo_TimeTick = 4660;
+					Servo_State = 0;	
 				}
 			}			
 			/* ===================  [END] (自动模式)直行请求响应模块 [END]==================== */
