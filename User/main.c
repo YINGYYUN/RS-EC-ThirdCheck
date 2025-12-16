@@ -115,8 +115,23 @@ uint8_t Servo_Turn_Flag = 0;
 
 
 //超声波测到的距离
-uint8_t HCSR04_Distance[3] = {0, 0, 0};  
-uint8_t Force_ENABLE = 0;
+//[0]左
+//[1]前
+//[2]右
+uint8_t HCSR04_Distance[3] = {0, 0, 0};
+//准备给测量滤波的输入
+//[0]无效值
+//[1]第一次
+//[2]第二次
+//[3]第三次
+uint16_t HCSR04_History[4] = {0, 0, 0, 0};
+uint16_t HCSR04_Sample_TimeTick = 0;
+uint8_t HCSR04_Sample_Count = 0;
+uint8_t HCSR04_Sample_State = 0;
+uint8_t HCSR04_Sample_ENABLE = 0;
+uint8_t HCSR04_Target = 0;
+
+uint16_t Force_ENABLE = 0;
 
 int main(void)
 {
@@ -220,7 +235,7 @@ int main(void)
 						Servo_State = 0;
 						Cur_Servo_Angle = 90;
 						Servo_SetAngle(Cur_Servo_Angle);
-						Servo_TimeTick = 4000;				
+						Servo_TimeTick = 5600;				
 					}
 					else
 					{
@@ -292,7 +307,7 @@ int main(void)
 						Servo_Turn_Flag = 1;
 						Servo_State = 1;
 						Force_ENABLE = 1;
-						Servo_TimeTick = 3000;
+						Servo_TimeTick = 4400;
 					}
 				}
 			}
@@ -447,7 +462,7 @@ int main(void)
 		
 		
 		//手动模式
-		if (FUNCTION_State == Flag_Manual_Mode)
+		if (FUNCTION_State == Flag_Manual_Mode && Force_ENABLE == 0)
 		{
 			
 			
@@ -492,48 +507,72 @@ int main(void)
 				HCSR04_Distance[1] = HCSR04_GetValue();
 				Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
 				//到墙
-				if (HCSR04_Distance[1] <= 4 && HCSR04_Distance[1] != 0)
+				if (HCSR04_Distance[1] <= 9 && HCSR04_Distance[1] != 0)
 				{
 					Car_StraightRun_Falg = 0;
 					Car_Stop();
 					Car_Movtion_Event = STOP;
 					Servo_Turn_Flag = 1;
-					Servo_TimeTick = 3000;
+					Servo_TimeTick = 4400;
 					Servo_State = 1;			
 				}
 			}
 			//运行舵机左前右测距请求
 			if(Servo_Turn_Flag == 1)
 			{
-				//启动流程
-				if	(3000 < Servo_TimeTick && Servo_TimeTick <= 3200 && Servo_State == 0)
+				//模式切换后的第一次测距
+				if	(4400 < Servo_TimeTick && Servo_TimeTick <= 4600 && Servo_State == 0)
 				{
-					HCSR04_Distance[1] = HCSR04_GetValue();
+					if (HCSR04_Sample_ENABLE == 0) 
+					{
+						HCSR04_Sample_ENABLE = 1;
+						HCSR04_Sample_State = 0;
+						HCSR04_Target = 1;
+					}
 					Servo_State = 1;
 				}	
 				//正常流程
-				else if (2000 < Servo_TimeTick && Servo_TimeTick <= 3000 && Servo_State == 1)
+				else if (3400 < Servo_TimeTick && Servo_TimeTick <= 4400 && Servo_State == 1)
 				{
 					Servo_SetAngle(180);
 					Servo_State = 2;
 				}
-				else if (1000 < Servo_TimeTick && Servo_TimeTick <= 2000 && Servo_State == 2)
+				else if (3200 < Servo_TimeTick && Servo_TimeTick <= 3400 && Servo_State == 2)
 				{
-					HCSR04_Distance[0] = HCSR04_GetValue();
-					Servo_SetAngle(0);
+					if (HCSR04_Sample_ENABLE == 0) 
+					{
+						HCSR04_Sample_ENABLE = 1;
+						HCSR04_Sample_State = 0;
+						HCSR04_Target = 0;
+					}
 					Servo_State = 3;
 				}
-				else if (0 < Servo_TimeTick && Servo_TimeTick <= 1000 && Servo_State == 3)
-				{
-					HCSR04_Distance[2] = HCSR04_GetValue();
-					Servo_SetAngle(90);
+				else if (1200 < Servo_TimeTick && Servo_TimeTick <= 3200 && Servo_State == 3)
+				{					
+					Servo_SetAngle(0);
 					Servo_State = 4;
 				}
-				else if (Servo_TimeTick == 0 && Servo_State == 4)
+				else if (1000 < Servo_TimeTick && Servo_TimeTick <= 1200 && Servo_State == 4)
+				{		
+					if (HCSR04_Sample_ENABLE == 0) 
+					{
+						HCSR04_Sample_ENABLE = 1;
+						HCSR04_Sample_State = 0;
+						HCSR04_Target = 2;
+					}
+					Servo_State = 5;
+				}
+				else if (0 < Servo_TimeTick && Servo_TimeTick <= 1000 && Servo_State == 5)
+				{					
+					Servo_SetAngle(90);
+					Servo_State = 6;
+				}
+				else if (Servo_TimeTick == 0 && Servo_State == 6)
 				{
 					//等待重置状态
 					Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
 					Servo_Turn_Flag = 2;
+					Force_ENABLE = 0;
 				}
 			}
 			/* =================== [END] (自动模式)自动测距模块 [END]==================== */
@@ -552,7 +591,7 @@ int main(void)
 			if (Servo_Turn_Flag == 2)		
 			{
 				//右
-				if (HCSR04_Distance[2] >= 18)
+				if (HCSR04_Distance[2] >= 16)
 				{
 					//发送定角度转向请求
 					Car_Tar_Yaw = Yaw - 90.0f;
@@ -567,7 +606,7 @@ int main(void)
 					Car_Movtion_Delay_TimeTick = 1400;
 				}
 				//左
-				else if (HCSR04_Distance[0] >= 18)
+				else if (HCSR04_Distance[0] >= 16)
 				{
 					//发送定角度转向请求
 					Car_Tar_Yaw = Yaw + 90.0f;
@@ -581,7 +620,7 @@ int main(void)
 					//发送定角度转向请求
 					Car_Tar_Yaw = Yaw - 180.0f;
 					Car_Turn_ENABLE = 1;
-					Car_Turn_TimeTick =  4000;
+					Car_Turn_TimeTick =  7000;
 					Car_Movtion_Event = AROUND;
 				}				
 				Servo_Turn_Flag = 0;
@@ -611,7 +650,7 @@ int main(void)
 					
 					//开始舵机旋转测距
 					Servo_Turn_Flag = 1;
-					Servo_TimeTick = 3000;
+					Servo_TimeTick = 4400;
 					Servo_State = 1;	
 				}
 			}			
@@ -621,6 +660,53 @@ int main(void)
 			
 			
 		}
+		
+		
+		
+		
+		/* =================== [START] ()超声波数据采样模块 [START]==================== */
+		if (HCSR04_Sample_ENABLE)
+		{
+			if (HCSR04_Sample_State == 0)
+			{
+				//空数据
+				HCSR04_History[0] = HCSR04_GetValue();
+				HCSR04_Sample_Count ++;
+				HCSR04_Sample_TimeTick = 62;
+				
+				HCSR04_Sample_State = 1;
+			}
+			else if (HCSR04_Sample_State == 1 && HCSR04_Sample_TimeTick == 0)
+			{
+				HCSR04_History[1] = HCSR04_GetValue();
+				if (HCSR04_History[1]) {HCSR04_Sample_Count ++;}
+				HCSR04_Sample_TimeTick = 62;
+				
+				HCSR04_Sample_State = 2;
+			}
+			else if (HCSR04_Sample_State == 2 && HCSR04_Sample_TimeTick == 0)
+			{
+				HCSR04_History[2] = HCSR04_GetValue();
+				if (HCSR04_History[2]) {HCSR04_Sample_Count ++;}
+				HCSR04_Sample_TimeTick = 62;
+				
+				HCSR04_Sample_State = 3;
+			}
+			else if (HCSR04_Sample_State == 3 && HCSR04_Sample_TimeTick == 0)
+			{
+				HCSR04_History[3] = HCSR04_GetValue();
+				if (HCSR04_History[3]) {HCSR04_Sample_Count ++;}
+						
+				HCSR04_Sample_State = 3;
+				
+				HCSR04_Distance[HCSR04_Target] = (HCSR04_History[1] + HCSR04_History[2] + HCSR04_History[3]) / 1.0 / HCSR04_Sample_Count;
+				
+				HCSR04_Sample_ENABLE = 0;			
+			}
+		}
+	
+		/* =================== [END] ()超声波数据采样模块 [END]==================== */
+		
 		
 		
 		
@@ -646,6 +732,7 @@ void TIM1_UP_IRQHandler(void)
 		if (Car_Turn_TimeTick > 0) Car_Turn_TimeTick --;
 		if (Servo_TimeTick > 0)Servo_TimeTick --;
 		if (Car_StraightRun_Falg == 2 && Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
+		if (HCSR04_Sample_TimeTick > 0 ) HCSR04_Sample_TimeTick --;
 //		if (Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
 		//超声波模块HCSR04进程
 		HCSR04_Tick();
