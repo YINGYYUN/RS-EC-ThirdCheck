@@ -45,7 +45,8 @@ float Yaw = 0;				//偏航角
 uint8_t Car_Movtion_Event = 0;
 //(自动模式)小车运行状态标志位
 uint8_t Car_Movtion_Event_History [30] = {0};
-
+uint8_t Car_Turn_Event_History [30] = {0};
+uint8_t Car_Turn_Count = 0;
 #define STOP		0
 #define UP			1
 #define DOWN		2
@@ -171,7 +172,7 @@ int main(void)
 	Serial_Printf("[display,0,20,%s]", Mode_Menu[FUNCTION_State]);
 	Serial_Printf("[display,0,40,Yaw]");
 	Serial_Printf("[display,0,80, R   G   B]");
-	Serial_Printf("[display,0,120,S_Angle]");
+//	Serial_Printf("[display,0,120,S_Angle]");
 	Serial_Printf("[display,0,160,HCSR04]");
 	Serial_Printf("[display,0,200,     |     ]");
 	/* =================== [END] (全模式)菜单初始化模块 [END] =================== */	
@@ -235,7 +236,7 @@ int main(void)
 						Servo_State = 0;
 						Cur_Servo_Angle = 90;
 						Servo_SetAngle(Cur_Servo_Angle);
-						Servo_TimeTick = 5660;				
+						Servo_TimeTick = 5580;				
 					}
 					else
 					{
@@ -307,7 +308,7 @@ int main(void)
 						Servo_Turn_Flag = 1;
 						Servo_State = 1;
 						Force_ENABLE = 1;
-						Servo_TimeTick = 7000;
+						Servo_TimeTick = 4580;
 						HCSR04_Sample_ENABLE=0; 
 						HCSR04_Sample_State=0;
 					}
@@ -417,7 +418,7 @@ int main(void)
 		/* =================== [START] (全模式)传感器数据自动回传模块 [START]==================== */
 //		Serial_Printf("[display,0,60,%d  ]",(int)GZ);
 		Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
-//		Serial_Printf("[display,0,100,%03d %3d %03d]", R_Dat, G_Dat, B_Dat);
+		Serial_Printf("[display,0,100,%03d %03d %03d]", R_Dat, G_Dat, B_Dat);
 //		Serial_Printf("[display,0,140,%d ]", Cur_Servo_Angle);
 		if (FUNCTION_State == Flag_Manual_Mode)
 		{
@@ -440,13 +441,13 @@ int main(void)
 		{
 			Color_Flag = GREEN;
 			LED_A_OFF_ALL();
-			LED_ON_SET(2);			
+			LED_ON_SET(2);
 		}
 		else if(0)//蓝
 		{
 			Color_Flag = BLUE;
 			LED_A_OFF_ALL();
-			LED_ON_SET(1);			
+			LED_ON_SET(1);
 		}
 		else if(0)//黑
 		{
@@ -509,13 +510,13 @@ int main(void)
 				HCSR04_Distance[1] = HCSR04_GetValue();
 				Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
 				//到墙
-				if (HCSR04_Distance[1] <= 9 && HCSR04_Distance[1] != 0)
+				if (Car_Movtion_Delay_TimeTick <= 1200 && HCSR04_Distance[1] <= 7 && HCSR04_Distance[1] != 0)
 				{
 					Car_StraightRun_Falg = 0;
 					Car_Stop();
 					Car_Movtion_Event = STOP;
 					Servo_Turn_Flag = 1;
-					Servo_TimeTick = 4660;
+					Servo_TimeTick = 4580;
 					Servo_State = 0;			
 				}
 			}
@@ -523,7 +524,7 @@ int main(void)
 			if(Servo_Turn_Flag == 1)
 			{
 				//模式切换后存在额外的一次旋转等待，这里的代码段是没有体现的
-				if	(4460 < Servo_TimeTick && Servo_TimeTick <= 4660 && Servo_State == 0)
+				if	(4520 < Servo_TimeTick && Servo_TimeTick <= 4580 && Servo_State == 0)
 				{
 					if (HCSR04_Sample_ENABLE == 0) 
 					{
@@ -533,12 +534,12 @@ int main(void)
 					}
 					Servo_State = 1;
 				}	
-				else if (3460 < Servo_TimeTick && Servo_TimeTick <= 4460 && Servo_State == 1)
+				else if (3520 < Servo_TimeTick && Servo_TimeTick <= 4520 && Servo_State == 1)
 				{
 					Servo_SetAngle(180);
 					Servo_State = 2;
 				}
-				else if (3260 < Servo_TimeTick && Servo_TimeTick <= 3460 && Servo_State == 2)
+				else if (3320 < Servo_TimeTick && Servo_TimeTick <= 3520 && Servo_State == 2)
 				{
 					if (HCSR04_Sample_ENABLE == 0) 
 					{
@@ -548,12 +549,12 @@ int main(void)
 					}
 					Servo_State = 3;
 				}
-				else if (1260 < Servo_TimeTick && Servo_TimeTick <= 3260 && Servo_State == 3)
+				else if (1320 < Servo_TimeTick && Servo_TimeTick <= 3320 && Servo_State == 3)
 				{					
 					Servo_SetAngle(0);
 					Servo_State = 4;
 				}
-				else if (1060 < Servo_TimeTick && Servo_TimeTick <= 1260 && Servo_State == 4)
+				else if (1120 < Servo_TimeTick && Servo_TimeTick <= 1320 && Servo_State == 4)
 				{		
 					if (HCSR04_Sample_ENABLE == 0) 
 					{
@@ -563,12 +564,12 @@ int main(void)
 					}
 					Servo_State = 5;
 				}
-				else if (60 < Servo_TimeTick && Servo_TimeTick <= 1060 && Servo_State == 5)
+				else if (120 < Servo_TimeTick && Servo_TimeTick <= 1120 && Servo_State == 5)
 				{					
 					Servo_SetAngle(90);
 					Servo_State = 6;
 				}
-				else if (0 < Servo_TimeTick && Servo_TimeTick <= 60 && Servo_State == 6)
+				else if (0 < Servo_TimeTick && Servo_TimeTick <= 120 && Servo_State == 6)
 				{					
 					HCSR04_StartMeasure();
 					Servo_State = 7;
@@ -596,38 +597,68 @@ int main(void)
 			//测距完成，发出对应动作请求
 			if (Servo_Turn_Flag == 2)		
 			{
+				//一层判断
 				//右
-				if (HCSR04_Distance[2] >= 16)
-				{
-					//发送定角度转向请求
-					Car_Tar_Yaw = Yaw - 90.0f;
-					Car_Turn_ENABLE = 1;
-					Car_Turn_TimeTick = 2200;
+				if (HCSR04_Distance[2] >= 18)
+				{		
 					Car_Movtion_Event = RIGHT_90;
 				}
 				//前
 				else if (HCSR04_Distance[1] >= 10)
-				{
-					Car_StraightRun_Falg = 1;
-					Car_Movtion_Delay_TimeTick = 1400;
+				{								
+					Car_Movtion_Event = UP;		
 				}
 				//左
-				else if (HCSR04_Distance[0] >= 16)
-				{
-					//发送定角度转向请求
-					Car_Tar_Yaw = Yaw + 90.0f;
-					Car_Turn_ENABLE = 1;
-					Car_Turn_TimeTick = 2200;
+				else if (HCSR04_Distance[0] >= 18)
+				{										
 					Car_Movtion_Event = LEFT_90;
 				}
 				//后
 				else 
-				{
-					//发送定角度转向请求
-					Car_Tar_Yaw = Yaw - 180.0f;
-					Car_Turn_ENABLE = 1;
-					Car_Turn_TimeTick =  7000;
+				{										
 					Car_Movtion_Event = AROUND;
+				}
+
+				//二层执行
+				switch(Car_Movtion_Event)
+				{
+					case UP:
+					{
+						Car_StraightRun_Falg = 1;
+						Car_Movtion_Delay_TimeTick = 1400;
+
+						break;
+					}
+					
+					case AROUND:
+					{
+						//发送定角度转向请求
+						Car_Tar_Yaw = Yaw - 180.0f;
+						Car_Turn_ENABLE = 1;
+						Car_Turn_TimeTick =  7000;
+						
+						break;
+					}						
+					
+					case RIGHT_90:
+					{
+						//发送定角度转向请求
+						Car_Tar_Yaw = Yaw - 90.0f;
+						Car_Turn_ENABLE = 1;
+						Car_Turn_TimeTick = 2200;
+															
+						break;
+					}
+					
+					case LEFT_90:
+					{
+						//发送定角度转向请求
+						Car_Tar_Yaw = Yaw + 90.0f;
+						Car_Turn_ENABLE = 1;
+						Car_Turn_TimeTick = 2200;
+						
+						break;
+					}
 				}				
 				Servo_Turn_Flag = 0;
 			}
@@ -656,7 +687,7 @@ int main(void)
 					
 					//开始舵机旋转测距
 					Servo_Turn_Flag = 1;
-					Servo_TimeTick = 4660;
+					Servo_TimeTick = 4580;
 					Servo_State = 0;	
 				}
 			}			
