@@ -284,7 +284,7 @@ int main(void)
 						//发送定角度转向请求
 						Car_Tar_Yaw = Yaw + 90.0f;
 						Car_Turn_ENABLE = 1;
-						Car_Turn_TimeTick = 2200;
+						Car_Turn_TimeTick = 4000;
 						Car_Movtion_Event = LEFT_90;
 					}
 					else if (strcmp(Name, "R_90") == 0 && strcmp(Action, "down") == 0)
@@ -292,7 +292,7 @@ int main(void)
 						//发送定角度转向请求
 						Car_Tar_Yaw = Yaw - 90.0f;
 						Car_Turn_ENABLE = 1;
-						Car_Turn_TimeTick = 2200;
+						Car_Turn_TimeTick = 4000;
 						Car_Movtion_Event = RIGHT_90;
 					}
 					else if (strcmp(Name, "STOP") == 0 && strcmp(Action, "down") == 0)
@@ -307,7 +307,7 @@ int main(void)
 						Servo_Turn_Flag = 1;
 						Servo_State = 1;
 						Force_ENABLE = 1;
-						Servo_TimeTick = 4660;
+						Servo_TimeTick = 7000;
 						HCSR04_Sample_ENABLE=0; 
 						HCSR04_Sample_State=0;
 					}
@@ -382,7 +382,7 @@ int main(void)
 				float abs_diff = fabs(yaw_diff);
 				
 				//基于与目标差值的二级旋转速度
-				uint8_t turn_pwm = (abs_diff > 7.0f) ? 95 : 60;
+				uint8_t turn_pwm = (abs_diff > 7.0f) ? 99 : 85;
 				
 				 if(yaw_diff > 0.5f)  // 偏左>0.5°，需左转
 				{
