@@ -46,6 +46,8 @@ uint8_t Car_Movtion_Event = 0;
 //(自动模式)小车运行状态标志位
 uint8_t Car_Movtion_Event_History [30] = {0};
 uint8_t Car_Turn_Event_History [30] = {0};
+
+uint8_t Car_Turn_Schedule_History [30] = {0};
 uint8_t Car_Turn_Count = 0;
 #define STOP		0
 #define UP			1
@@ -602,6 +604,8 @@ int main(void)
 				if (HCSR04_Distance[2] >= 18)
 				{		
 					Car_Movtion_Event = RIGHT_90;
+					Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
+					Car_Turn_Count ++;					
 				}
 				//前
 				else if (HCSR04_Distance[1] >= 10)
@@ -612,13 +616,22 @@ int main(void)
 				else if (HCSR04_Distance[0] >= 18)
 				{										
 					Car_Movtion_Event = LEFT_90;
+					Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
+					Car_Turn_Count ++;
 				}
 				//后
 				else 
 				{										
 					Car_Movtion_Event = AROUND;
 				}
-
+				
+				//介入方向控制
+				if (Car_Turn_Schedule_History[Car_Turn_Count] != 0 &&
+					Car_Turn_Schedule_History[Car_Turn_Count] != Car_Turn_Event_History [Car_Turn_Count])
+				{
+					Car_Movtion_Event = Car_Turn_Schedule_History[Car_Turn_Count];
+				}
+				
 				//二层执行
 				switch(Car_Movtion_Event)
 				{
