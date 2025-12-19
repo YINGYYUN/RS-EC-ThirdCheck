@@ -46,17 +46,20 @@ uint8_t Car_Movtion_Event = 0;
 //(自动模式)小车运行状态标志位
 uint8_t Car_Movtion_Event_History [30] = {0};
 uint8_t Car_Turn_Event_History [30] = {0};
+#define R_Priority			0
+#define L_Priority			1
+uint8_t Car_Turn_Mode = R_Priority;
 
 uint8_t Car_Turn_Schedule_History [30] = {0};
 uint8_t Car_Turn_Count = 0;
-#define STOP		0
-#define UP			1
-#define DOWN		2
-#define LEFT		3
-#define RIGHT		4
-#define LEFT_90		5
-#define RIGHT_90	6
-#define AROUND		7
+#define STOP				0
+#define UP					1
+#define DOWN				2
+#define LEFT				3
+#define RIGHT				4
+#define LEFT_90				5
+#define RIGHT_90			6
+#define AROUND				7
 
 
 //(自动模式)定时直行请求挂起标志位
@@ -600,37 +603,66 @@ int main(void)
 			if (Servo_Turn_Flag == 2)		
 			{
 				//一层判断
-				//右
-				if (HCSR04_Distance[2] >= 18)
-				{		
-					Car_Movtion_Event = RIGHT_90;
-					Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
-					Car_Turn_Count ++;					
-				}
-				//前
-				else if (HCSR04_Distance[1] >= 10)
-				{								
-					Car_Movtion_Event = UP;		
-				}
-				//左
-				else if (HCSR04_Distance[0] >= 18)
-				{										
-					Car_Movtion_Event = LEFT_90;
-					Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
-					Car_Turn_Count ++;
-				}
-				//后
-				else 
-				{										
-					Car_Movtion_Event = AROUND;
-				}
-				
-				//介入方向控制
-				if (Car_Turn_Schedule_History[Car_Turn_Count] != 0 &&
-					Car_Turn_Schedule_History[Car_Turn_Count] != Car_Turn_Event_History [Car_Turn_Count])
+				if(Car_Turn_Mode == R_Priority)
 				{
-					Car_Movtion_Event = Car_Turn_Schedule_History[Car_Turn_Count];
+					//右
+					if (HCSR04_Distance[2] >= 18)
+					{		
+						Car_Movtion_Event = RIGHT_90;
+						Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
+						Car_Turn_Count ++;					
+					}
+					//前
+					else if (HCSR04_Distance[1] >= 10)
+					{								
+						Car_Movtion_Event = UP;		
+					}
+					//左
+					else if (HCSR04_Distance[0] >= 18)
+					{										
+						Car_Movtion_Event = LEFT_90;
+						Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
+						Car_Turn_Count ++;
+					}
+					//后
+					else 
+					{										
+						Car_Movtion_Event = AROUND;
+					}
 				}
+				else if(Car_Turn_Mode == L_Priority)
+				{
+					//左
+					if (HCSR04_Distance[0] >= 18)
+					{										
+						Car_Movtion_Event = LEFT_90;
+						Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
+						Car_Turn_Count ++;
+					}
+					//前
+					else if (HCSR04_Distance[1] >= 10)
+					{								
+						Car_Movtion_Event = UP;		
+					}
+					//右					
+					else if (HCSR04_Distance[2] >= 18)
+					{		
+						Car_Movtion_Event = RIGHT_90;
+						Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
+						Car_Turn_Count ++;					
+					}
+					//后
+					else 
+					{										
+						Car_Movtion_Event = AROUND;
+					}
+				}
+//				//介入方向控制
+//				if (Car_Turn_Schedule_History[Car_Turn_Count] != 0 &&
+//					Car_Turn_Schedule_History[Car_Turn_Count] != Car_Turn_Event_History [Car_Turn_Count])
+//				{
+//					Car_Movtion_Event = Car_Turn_Schedule_History[Car_Turn_Count];
+//				}
 				
 				//二层执行
 				switch(Car_Movtion_Event)
