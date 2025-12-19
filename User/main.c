@@ -44,14 +44,16 @@ float Yaw = 0;				//偏航角
 //小车运行状态标志位
 uint8_t Car_Movtion_Event = 0;
 //(自动模式)小车运行状态标志位
-uint8_t Car_Movtion_Event_History [30] = {0};
-uint8_t Car_Turn_Event_History [30] = {0};
+uint8_t Car_Movtion_Event_History [40] = {0};
+uint8_t Car_Movtion_Count = 0;
+//uint8_t Car_Turn_Event_History [40] = {0};
 #define R_Priority			0
 #define L_Priority			1
 uint8_t Car_Turn_Mode = R_Priority;
+uint8_t Corridor_Count = 0;
 
-uint8_t Car_Turn_Schedule_History [30] = {0};
-uint8_t Car_Turn_Count = 0;
+//uint8_t Car_Turn_Schedule_History [30] = {0};
+//uint8_t Car_Turn_Count = 0;
 #define STOP				0
 #define UP					1
 #define DOWN				2
@@ -609,25 +611,33 @@ int main(void)
 					if (HCSR04_Distance[2] >= 18)
 					{		
 						Car_Movtion_Event = RIGHT_90;
-						Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
-						Car_Turn_Count ++;					
+//						Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
+//						Car_Turn_Count ++;			
+						Car_Movtion_Event_History [Car_Movtion_Count] = RIGHT_90;
+						Car_Movtion_Count ++;
 					}
 					//前
 					else if (HCSR04_Distance[1] >= 10)
 					{								
-						Car_Movtion_Event = UP;		
+						Car_Movtion_Event = UP;
+						Car_Movtion_Event_History [Car_Movtion_Count] = UP;
+						Car_Movtion_Count ++;
 					}
 					//左
 					else if (HCSR04_Distance[0] >= 18)
 					{										
 						Car_Movtion_Event = LEFT_90;
-						Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
-						Car_Turn_Count ++;
+//						Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
+//						Car_Turn_Count ++;
+						Car_Movtion_Event_History [Car_Movtion_Count] = LEFT_90;
+						Car_Movtion_Count ++;
 					}
 					//后
 					else 
 					{										
 						Car_Movtion_Event = AROUND;
+						Car_Movtion_Event_History [Car_Movtion_Count] = AROUND;
+						Car_Movtion_Count ++;
 					}
 				}
 				else if(Car_Turn_Mode == L_Priority)
@@ -636,28 +646,46 @@ int main(void)
 					if (HCSR04_Distance[0] >= 18)
 					{										
 						Car_Movtion_Event = LEFT_90;
-						Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
-						Car_Turn_Count ++;
+//						Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
+//						Car_Turn_Count ++;
+						Car_Movtion_Event_History [Car_Movtion_Count] = LEFT_90;
+						Car_Movtion_Count ++;
 					}
 					//前
 					else if (HCSR04_Distance[1] >= 10)
 					{								
-						Car_Movtion_Event = UP;		
+						Car_Movtion_Event = UP;
+						Car_Movtion_Event_History [Car_Movtion_Count] = UP;
+						Car_Movtion_Count ++;
 					}
 					//右					
 					else if (HCSR04_Distance[2] >= 18)
 					{		
 						Car_Movtion_Event = RIGHT_90;
-						Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
-						Car_Turn_Count ++;					
+//						Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
+//						Car_Turn_Count ++;
+						Car_Movtion_Event_History [Car_Movtion_Count] = RIGHT_90;
+						Car_Movtion_Count ++;
 					}
 					//后
 					else 
 					{										
 						Car_Movtion_Event = AROUND;
+						Car_Movtion_Event_History [Car_Movtion_Count] = AROUND;
+						Car_Movtion_Count ++;
 					}
 				}
-//				//介入方向控制
+				
+				if(HCSR04_Distance[1] >= 50)
+				{
+					Corridor_Count ++;
+				}
+				
+				if(Corridor_Count == 3)
+				{
+					Car_Turn_Mode = L_Priority;
+				}
+//				//介入方向控制（标记式）
 //				if (Car_Turn_Schedule_History[Car_Turn_Count] != 0 &&
 //					Car_Turn_Schedule_History[Car_Turn_Count] != Car_Turn_Event_History [Car_Turn_Count])
 //				{
