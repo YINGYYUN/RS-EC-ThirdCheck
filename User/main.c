@@ -44,26 +44,24 @@ float Yaw = 0;				//偏航角
 //小车运行状态标志位
 uint8_t Car_Movtion_Event = 0;
 //(自动模式)小车运行状态标志位
-uint8_t Car_Movtion_Event_History [40] = {0};
+uint8_t Car_Movtion_Event_History [60] = {0};
 uint8_t Car_Movtion_Count = 0;
-//uint8_t Car_Turn_Event_History [40] = {0};
-#define R_Priority			0
-#define L_Priority			1
-uint8_t Car_Turn_Mode = R_Priority;
+
+#define Right_Priority			0
+#define Left_Priority			1
+uint8_t Car_Turn_Strategy = Right_Priority;
+
 uint8_t Corridor_Flag = 0;
 uint8_t Corridor_Count = 0;
 
-//uint8_t Car_Turn_Schedule_History [30] = {0};
-//uint8_t Car_Turn_Count = 0;
-#define STOP				0
-#define UP					1
-#define DOWN				2
-#define LEFT				3
-#define RIGHT				4
-#define LEFT_90				5
-#define RIGHT_90			6
-#define AROUND				7
-
+#define STOP		0
+#define UP			1
+#define DOWN		2
+#define LEFT		3
+#define RIGHT		4
+#define LEFT_90		5
+#define RIGHT_90	6
+#define AROUND		7
 
 //(自动模式)定时直行请求挂起标志位
 uint8_t Car_StraightRun_Falg = 0;
@@ -426,9 +424,9 @@ int main(void)
 		/* =================== [START] (全模式)传感器数据自动回传模块 [START]==================== */
 //		Serial_Printf("[display,0,60,%d  ]",(int)GZ);
 		Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
-		Serial_Printf("[display,0,100,%03d %03d %03d]", R_Dat, G_Dat, B_Dat);		
-		Serial_Printf("[display,0,140,%d ]", Corridor_Count);
+		Serial_Printf("[display,0,100,%03d %03d %03d]", R_Dat, G_Dat, B_Dat);
 //		Serial_Printf("[display,0,140,%d ]", Cur_Servo_Angle);
+		Serial_Printf("[display,0,140,%d ]", Corridor_Count);
 		if (FUNCTION_State == Flag_Manual_Mode)
 		{
 			Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
@@ -606,15 +604,13 @@ int main(void)
 			//测距完成，发出对应动作请求
 			if (Servo_Turn_Flag == 2)		
 			{
-				//一层：判断
-				if(Car_Turn_Mode == R_Priority)
+				//一层:判断
+				if (Car_Turn_Strategy == Right_Priority)
 				{
 					//右
 					if (HCSR04_Distance[2] >= 18)
 					{		
 						Car_Movtion_Event = RIGHT_90;
-//						Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
-//						Car_Turn_Count ++;			
 						Car_Movtion_Event_History [Car_Movtion_Count] = RIGHT_90;
 						Car_Movtion_Count ++;
 					}
@@ -629,8 +625,6 @@ int main(void)
 					else if (HCSR04_Distance[0] >= 18)
 					{										
 						Car_Movtion_Event = LEFT_90;
-//						Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
-//						Car_Turn_Count ++;
 						Car_Movtion_Event_History [Car_Movtion_Count] = LEFT_90;
 						Car_Movtion_Count ++;
 					}
@@ -642,17 +636,16 @@ int main(void)
 						Car_Movtion_Count ++;
 					}
 				}
-				else if(Car_Turn_Mode == L_Priority)
+				else if (Car_Turn_Strategy == Left_Priority)
 				{
 					//左
 					if (HCSR04_Distance[0] >= 18)
 					{										
 						Car_Movtion_Event = LEFT_90;
-//						Car_Turn_Event_History [Car_Turn_Count] = LEFT_90;
-//						Car_Turn_Count ++;
 						Car_Movtion_Event_History [Car_Movtion_Count] = LEFT_90;
 						Car_Movtion_Count ++;
 					}
+					
 					//前
 					else if (HCSR04_Distance[1] >= 10)
 					{								
@@ -660,12 +653,10 @@ int main(void)
 						Car_Movtion_Event_History [Car_Movtion_Count] = UP;
 						Car_Movtion_Count ++;
 					}
-					//右					
+					//右
 					else if (HCSR04_Distance[2] >= 18)
 					{		
 						Car_Movtion_Event = RIGHT_90;
-//						Car_Turn_Event_History [Car_Turn_Count] = RIGHT_90;
-//						Car_Turn_Count ++;
 						Car_Movtion_Event_History [Car_Movtion_Count] = RIGHT_90;
 						Car_Movtion_Count ++;
 					}
@@ -678,26 +669,23 @@ int main(void)
 					}
 				}
 				
-				if(HCSR04_Distance[1] >= 50 && Corridor_Flag == 0)
-				{					
+				if (Corridor_Flag == 0 && HCSR04_Distance[1] >= 30)
+				{
 					Corridor_Flag = 1;
-				}
-				if(Corridor_Flag == 1 && Car_Movtion_Event != UP)
-				{
 					Corridor_Count ++;
-				}				
-				if(Corridor_Count == 5)
-				{
-					Car_Turn_Mode = L_Priority;
 				}
-//				//介入方向控制（标记式）
-//				if (Car_Turn_Schedule_History[Car_Turn_Count] != 0 &&
-//					Car_Turn_Schedule_History[Car_Turn_Count] != Car_Turn_Event_History [Car_Turn_Count])
-//				{
-//					Car_Movtion_Event = Car_Turn_Schedule_History[Car_Turn_Count];
-//				}
+				else if (Corridor_Flag == 1 && Car_Movtion_Event != UP)
+				{
+					Corridor_Flag = 0;
+				}
 				
-				//二层：执行
+				if (Corridor_Count >= 5 && Car_Turn_Strategy == Right_Priority)
+				{
+					Car_Turn_Strategy = Left_Priority;				
+				}			
+				
+
+				//二层:执行
 				switch(Car_Movtion_Event)
 				{
 					case UP:
