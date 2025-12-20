@@ -24,13 +24,13 @@
 /* ==================== [START] (全模式)MPU6050姿态解算相关变量定义 [START] ==================== */
 //MPU6050原始数据读取接收
 //int16_t AX, AY, AZ, GX, GY, GZ;
-int16_t GZ;
+volatile int16_t GZ;
 
 //float RollAcc;    		// 加速度计计算的横滚角
 //float RollGyro;   		// 陀螺仪积分的横滚角
 //float Roll;       		// 融合后的横滚角
 
-float Yaw = 0;				//偏航角
+volatile float Yaw = 0;				//偏航角
 
 //float PitchAcc;			//加速度计算的俯仰角
 //float PitchGyro;			//陀螺仪积分的俯仰角
@@ -64,17 +64,17 @@ uint8_t Corridor_Count = 0;
 #define AROUND		7
 
 //(自动模式)定时直行请求挂起标志位
-uint8_t Car_StraightRun_Falg = 0;
+volatile uint8_t Car_StraightRun_Falg = 0;
 
 //定角度转向请求挂起标志位
-uint8_t Car_Turn_ENABLE = 0;
+volatile uint8_t Car_Turn_ENABLE = 0;
 //转向目标角度存储
 float Car_Tar_Yaw = 0.0f;
 //旋转超时计时
-uint16_t Car_Turn_TimeTick = 0;
+volatile uint16_t Car_Turn_TimeTick = 0;
 
 //定时运动计时和标志位
-uint16_t Car_Movtion_Delay_TimeTick = 0;
+volatile uint16_t Car_Movtion_Delay_TimeTick = 0;
 uint8_t Car_Movtion_Delay_Flag = 0;
 /* ==================== [END] (全模式)运动状态控制相关变量定义 [END] ==================== */
 
@@ -105,7 +105,7 @@ uint8_t Cur_Servo_Angle = 90;
 //uint8_t Tar_Servo_Angle = 90;
 
 //舵机运行时基
-uint16_t Servo_TimeTick = 0;
+volatile uint16_t Servo_TimeTick = 0;
 
 //舵机旋转标志位
 //01234代表旋转本身的不同阶段，防止频繁发出旋转指令
@@ -115,7 +115,7 @@ uint8_t Servo_State = 0;
 //0		不运行
 //1		请求挂起
 //2		测距完成，等待复位
-uint8_t Servo_Turn_Flag = 0;
+volatile uint8_t Servo_Turn_Flag = 0;
 /* =================== [END] (全模式)舵机旋转模块 [END]==================== */
 
 
@@ -132,10 +132,10 @@ uint8_t HCSR04_Distance[3] = {0, 0, 0};
 //[2]第二次
 //[3]第三次
 uint16_t HCSR04_History[4] = {0, 0, 0, 0};
-uint16_t HCSR04_Sample_TimeTick = 0;
+volatile uint16_t HCSR04_Sample_TimeTick = 0;
 uint8_t HCSR04_Sample_Count = 0;
-uint8_t HCSR04_Sample_State = 0;
-uint8_t HCSR04_Sample_ENABLE = 0;
+volatile uint8_t HCSR04_Sample_State = 0;
+volatile uint8_t HCSR04_Sample_ENABLE = 0;
 uint8_t HCSR04_Target = 0;
 
 uint16_t Force_ENABLE = 0;
@@ -237,6 +237,10 @@ int main(void)
 						HCSR04_Distance[0] = 0;
 						HCSR04_Distance[1] = 0;
 						HCSR04_Distance[2] = 0;
+						HCSR04_Sample_ENABLE = 0;
+						HCSR04_Sample_State  = 0;
+						HCSR04_Sample_Count  = 0;
+						HCSR04_History[0] = HCSR04_History[1] = HCSR04_History[2] = HCSR04_History[3] = 0;
 						
 						Servo_Turn_Flag = 1;
 						Servo_State = 0;
