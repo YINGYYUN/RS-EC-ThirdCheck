@@ -50,6 +50,7 @@ uint8_t Car_Movtion_Count = 0;
 #define R_Priority			0
 #define L_Priority			1
 uint8_t Car_Turn_Mode = R_Priority;
+uint8_t Corridor_Flag = 0;
 uint8_t Corridor_Count = 0;
 
 //uint8_t Car_Turn_Schedule_History [30] = {0};
@@ -604,7 +605,7 @@ int main(void)
 			//测距完成，发出对应动作请求
 			if (Servo_Turn_Flag == 2)		
 			{
-				//一层判断
+				//一层：判断
 				if(Car_Turn_Mode == R_Priority)
 				{
 					//右
@@ -676,12 +677,15 @@ int main(void)
 					}
 				}
 				
-				if(HCSR04_Distance[1] >= 50)
+				if(HCSR04_Distance[1] >= 50 && Corridor_Flag == 0)
+				{					
+					Corridor_Flag = 1;
+				}
+				if(Corridor_Flag == 1 && Car_Movtion_Event != UP)
 				{
 					Corridor_Count ++;
-				}
-				
-				if(Corridor_Count == 3)
+				}				
+				if(Corridor_Count == 5)
 				{
 					Car_Turn_Mode = L_Priority;
 				}
@@ -692,7 +696,7 @@ int main(void)
 //					Car_Movtion_Event = Car_Turn_Schedule_History[Car_Turn_Count];
 //				}
 				
-				//二层执行
+				//二层：执行
 				switch(Car_Movtion_Event)
 				{
 					case UP:
