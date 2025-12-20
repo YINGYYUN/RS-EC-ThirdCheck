@@ -426,7 +426,8 @@ int main(void)
 		/* =================== [START] (全模式)传感器数据自动回传模块 [START]==================== */
 //		Serial_Printf("[display,0,60,%d  ]",(int)GZ);
 		Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
-		Serial_Printf("[display,0,100,%03d %03d %03d]", R_Dat, G_Dat, B_Dat);
+		Serial_Printf("[display,0,100,%03d %03d %03d]", R_Dat, G_Dat, B_Dat);		
+		Serial_Printf("[display,0,140,%d ]", Corridor_Count);
 //		Serial_Printf("[display,0,140,%d ]", Cur_Servo_Angle);
 		if (FUNCTION_State == Flag_Manual_Mode)
 		{
