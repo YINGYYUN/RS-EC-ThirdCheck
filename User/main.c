@@ -18,18 +18,16 @@
 #include <math.h>
 #include <stdlib.h>
 
-/* ==================== [START] (全模式)MPU6050姿态解算相关变量定义 [START] ==================== */
-// MPU6050原始数据读取接收
-volatile int16_t GZ;
-// 偏航角（无加计校准，会漂移）
-volatile float Yaw = 0.0f;
-/* ==================== [END] (全模式)MPU6050姿态解算相关变量定义 [END] ==================== */
+/* ==================== [START] MPU6050姿态解算变量 [START] ==================== */
+volatile int16_t GZ;          // 陀螺仪Z轴原始数据（ISR更新）
+volatile float   Yaw = 0.0f;  // 偏航角（ISR积分更新）
+/* ==================== [END] MPU6050姿态解算变量 [END] ==================== */
 
 
-/* ==================== [START] (全模式)运动状态控制相关变量定义 [START] ==================== */
+/* ==================== [START] 运动状态控制变量 [START] ==================== */
 // 小车运行状态标志位
 uint8_t Car_Movtion_Event = 0;
-// (自动模式)历史动作事件记录
+// (自动模式)历史动作事件记录（环形缓冲）
 uint8_t Car_Movtion_Event_History[60] = {0};
 uint8_t Car_Movtion_Count = 0;
 
@@ -48,26 +46,26 @@ uint8_t Car_Movtion_Count = 0;
 uint8_t Car_Turn_Strategy = Right_Priority;
 
 // 走廊检测
-uint8_t Corridor_Flag = 0;
+uint8_t Corridor_Flag  = 0;
 uint8_t Corridor_Count = 0;
 
 // (自动模式)定时直行请求挂起标志位
-volatile uint8_t Car_StraightRun_Falg = 0;
+volatile uint8_t  Car_StraightRun_Falg = 0;
 
 // 定角度转向请求挂起标志位
-volatile uint8_t Car_Turn_ENABLE = 0;
+volatile uint8_t  Car_Turn_ENABLE = 0;
 // 转向目标角度存储
-float Car_Tar_Yaw = 0.0f;
+float             Car_Tar_Yaw = 0.0f;
 // 旋转超时计时
 volatile uint16_t Car_Turn_TimeTick = 0;
 
-// 定时运动计时和标志位
+// 定时运动计时
 volatile uint16_t Car_Movtion_Delay_TimeTick = 0;
-uint8_t Car_Movtion_Delay_Flag = 0;
-/* ==================== [END] (全模式)运动状态控制相关变量定义 [END] ==================== */
+uint8_t           Car_Movtion_Delay_Flag = 0;
+/* ==================== [END] 运动状态控制变量 [END] ==================== */
 
 
-/* =================== [START] (全模式)颜色识别模块 [START]==================== */
+/* =================== [START] 颜色识别模块 [START] ==================== */
 RGB rgb; // 颜色结构体
 
 #define OTHERS  0
@@ -76,21 +74,19 @@ RGB rgb; // 颜色结构体
 #define BLUE    3
 #define BLACK   4
 
-// 颜色分类判定
 uint8_t Color_Flag = OTHERS;
-/* =================== [END] (全模式)颜色识别模块 [END]==================== */
+/* =================== [END] 颜色识别模块 [END] ==================== */
 
 
-/* =================== [START] (全模式)舵机旋转模块 [START]==================== */
+/* =================== [START] 舵机旋转/扫描状态机 [START] ==================== */
 // 舵机当前角度（每次上电后自动旋转至该角度）
 uint8_t Cur_Servo_Angle = 90;
 
-// 舵机旋转测距标志位
-// 0 不运行；1 执行中；2 测距完成，等待复位/决策
+// 舵机扫描标志位：0 不运行；1 扫描进行中；2 扫描完成等待决策
 volatile uint8_t Servo_Turn_Flag = 0;
 
-// 舵机状态机（事件驱动，避免“窄时间窗”丢步）
-enum {
+// 舵机扫描状态枚举（事件驱动，不依赖窄时间窗）
+typedef enum {
     SERVO_SCAN_IDLE = 0,
     SCAN_FRONT_START,
     SCAN_FRONT_WAIT,
@@ -101,27 +97,41 @@ enum {
     SCAN_RIGHT_START,
     SCAN_RIGHT_WAIT,
     RETURN_CENTER,
+    START_FINAL_MEASURE,
     SCAN_DONE
-};
+} ServoScanState;
+
 uint8_t Servo_State = SERVO_SCAN_IDLE;
 
-// 舵机动作/采样的稳定等待计时（ms）
+// 舵机动作/稳定等待计时（ms），由TIM1 ISR每1ms递减
 volatile uint16_t Servo_Settle_Tick = 0;
-/* =================== [END] (全模式)舵机旋转模块 [END]==================== */
+
+// 等效等待时间常量（ms），对应你第二版的窗口语义
+// 若希望“切到自动模式立刻开始前向采样”，可将 PRE_DELAY_MS 改为 0。
+#define PRE_DELAY_MS            1000  // 等效原 5580->4580 的预等待
+#define FRONT_TO_LEFT_MS          60  // 等效原 4580->4520
+#define LEFT_SETTLE_MS          1000  // 等效原 4520->3520
+#define LEFT_TO_RIGHT_MS         200  // 等效原 3520->3320
+#define RIGHT_SETTLE_MS         2000  // 等效原 3320->1320
+#define RIGHT_TO_CENTER_MS       200  // 等效原 1320->1120
+#define CENTER_SETTLE_MS        1000  // 等效原 1120->120
+#define FINAL_MEASURE_MS         120  // 等效原 120->0
+/* =================== [END] 舵机旋转/扫描状态机 [END] ==================== */
 
 
-/* =================== [START] (全模式)超声波模块 [START]==================== */
-// 超声波测到的距离 [0]左 [1]前 [2]右 （使用16位避免截断）
+/* =================== [START] 超声波模块 [START] ==================== */
+// 超声波三向距离 [0]左 [1]前 [2]右（16位避免8位截断）
 uint16_t HCSR04_Distance[3] = {0, 0, 0};
 
 // 采样滤波输入
-uint16_t HCSR04_History[4] = {0, 0, 0, 0};
+uint16_t        HCSR04_History[4]     = {0, 0, 0, 0};
 volatile uint16_t HCSR04_Sample_TimeTick = 0;
-uint8_t  HCSR04_Sample_Count  = 0;
+uint8_t         HCSR04_Sample_Count   = 0;
 volatile uint8_t HCSR04_Sample_State  = 0;
 volatile uint8_t HCSR04_Sample_ENABLE = 0;
-uint8_t  HCSR04_Target = 0;
-/* =================== [END] (全模式)超声波模块 [END]==================== */
+uint8_t         HCSR04_Target         = 0;
+/* =================== [END] 超声波模块 [END] ==================== */
+
 
 // 手动模式强制舵机扫描使能
 volatile uint8_t Force_ENABLE = 0;
@@ -129,12 +139,14 @@ volatile uint8_t Force_ENABLE = 0;
 // 全局时基
 volatile uint16_t TimeTick;
 
-/* =================== [START] 函数原型 [START] ===================== */
+
+/* =================== [START] 辅助函数 [START] ==================== */
 static inline void record_motion_event(uint8_t ev) {
     Car_Movtion_Event_History[Car_Movtion_Count % 60] = ev;
     Car_Movtion_Count++;
 }
-/* =================== [END] 函数原型 [END] ===================== */
+/* =================== [END] 辅助函数 [END] ==================== */
+
 
 int main(void)
 {
@@ -158,7 +170,7 @@ int main(void)
 
     Servo_SetAngle(Cur_Servo_Angle);
 
-    /* =================== [START] (全模式)菜单初始化模块 [START] =================== */
+    /* =================== [START] 菜单初始化模块 [START] =================== */
     char Mode_Menu[][15] = {"Manual Mode  ", "Auto Mode    "};
     #define Flag_Manual_Mode    0
     #define Flag_Auto_Mode      1
@@ -173,11 +185,11 @@ int main(void)
     Serial_Printf("[display,0,80, R   G   B]");
     Serial_Printf("[display,0,160,HCSR04]");
     Serial_Printf("[display,0,200,     |     ]");
-    /* =================== [END] (全模式)菜单初始化模块 [END] =================== */
+    /* =================== [END] 菜单初始化模块 [END] =================== */
 
     while (1)
     {
-        /* =================== [START] (全模式)蓝牙收发与处理模块 [START] ==================== */
+        /* =================== [START] 蓝牙收发与处理模块 [START] ==================== */
         if (Serial_RxFlag == 1)
         {
             char * Tag = strtok(Serial_RxPacket, ",");
@@ -185,7 +197,7 @@ int main(void)
             // 按键解析
             if (Tag && strcmp(Tag, "key") == 0)
             {
-                char * Name = strtok(NULL, ",");
+                char * Name   = strtok(NULL, ",");
                 char * Action = strtok(NULL, ",");
 
                 // 手动/自动模式切换
@@ -211,24 +223,20 @@ int main(void)
                         HCSR04_Sample_Count  = 0;
                         HCSR04_History[0] = HCSR04_History[1] = HCSR04_History[2] = HCSR04_History[3] = 0;
 
-                        // 舵机扫描状态机：立即启动
-                        Servo_Turn_Flag = 1;
-                        Servo_State     = SCAN_FRONT_START;
-                        Servo_Settle_Tick = 0;
+                        // 舵机扫描状态机：立即启动（保留原窗口等待语义）
+                        Servo_Turn_Flag   = 1;
+                        Servo_State       = SCAN_FRONT_START;
+                        Servo_Settle_Tick = PRE_DELAY_MS;   // 预等待，等效原 5580->4580
+                        Cur_Servo_Angle   = 90;
+                        Servo_SetAngle(90);
 
-                        // 回中
-                        Cur_Servo_Angle = 90;
-                        Servo_SetAngle(Cur_Servo_Angle);
-
-                        // 走廊状态复位
-                        Corridor_Flag   = 0;
-                        // Corridor_Count 不清零，以便累计后切换策略
+                        // 走廊状态复位；Corridor_Count 不清零以便累计后切策略
+                        Corridor_Flag     = 0;
                     }
                     else
                     {
-                        // 退出自动模式
-                        Servo_Turn_Flag = 0;
-                        Servo_State     = SERVO_SCAN_IDLE;
+                        Servo_Turn_Flag   = 0;
+                        Servo_State       = SERVO_SCAN_IDLE;
                         Servo_Settle_Tick = 0;
                     }
                 }
@@ -288,18 +296,15 @@ int main(void)
                         Servo_Turn_Flag   = 1;
                         Servo_State       = SCAN_FRONT_START;
                         Force_ENABLE      = 1;
-                        Servo_Settle_Tick = 0;
-
-                        // 清理采样状态
+                        Servo_Settle_Tick = PRE_DELAY_MS;  // 保留预等待语义（可改为0）
                         HCSR04_Sample_ENABLE = 0;
                         HCSR04_Sample_State  = 0;
-
-                        // 回中
-                        Cur_Servo_Angle = 90;
-                        Servo_SetAngle(Cur_Servo_Angle);
+                        Cur_Servo_Angle   = 90;
+                        Servo_SetAngle(90);
                     }
                 }
             }
+            // 滑杆解析
             else if (Tag && strcmp(Tag, "slider") == 0)
             {
                 char * Name  = strtok(NULL, ",");
@@ -311,6 +316,7 @@ int main(void)
                     Cur_Servo_Angle = (uint8_t)IntValue;
                     Servo_SetAngle(Cur_Servo_Angle);
 
+                    // 舵机测距回传标示
                     if (Cur_Servo_Angle == 90)
                     {
                         Serial_Printf("[display,0,200,     |     ]");
@@ -328,10 +334,10 @@ int main(void)
 
             Serial_RxFlag = 0;
         }
-        /* =================== [END] (全模式)蓝牙收发与处理模块 [END] ==================== */
+        /* =================== [END] 蓝牙收发与处理模块 [END] ==================== */
 
 
-        /* =================== [START] (全模式)小车定角度旋转响应模块 [START] ==================== */
+        /* =================== [START] 定角度旋转响应模块 [START] ==================== */
         if (Car_Turn_ENABLE)
         {
             if (Car_Turn_TimeTick == 0)
@@ -376,10 +382,10 @@ int main(void)
                 }
             }
         }
-        /* =================== [END] (全模式)小车定角度旋转响应模块 [END] ==================== */
+        /* =================== [END] 定角度旋转响应模块 [END] ==================== */
 
 
-        /* =================== [START] (全模式)传感器数据自动回传模块 [START] ==================== */
+        /* =================== [START] 传感器数据自动回传模块 [START] ==================== */
         Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
         Serial_Printf("[display,0,100,%03d %03d %03d]", R_Dat, G_Dat, B_Dat);
         Serial_Printf("[display,0,140,%d ]", Corridor_Count);
@@ -388,10 +394,10 @@ int main(void)
             Serial_Printf("[display,0,180,%04d,%04d,%04d  ]",
                           (int)HCSR04_Distance[0], (int)HCSR04_Distance[1], (int)HCSR04_Distance[2]);
         }
-        /* =================== [END] (全模式)传感器数据自动回传模块 [END] ==================== */
+        /* =================== [END] 传感器数据自动回传模块 [END] ==================== */
 
 
-        /* =================== [START] (全模式)LED自动响应颜色识别模块 [START] ==================== */
+        /* =================== [START] LED自动响应颜色识别模块 [START] ==================== */
         if (0) // 红（占位）
         {
             Color_Flag = RED;
@@ -420,10 +426,10 @@ int main(void)
             Color_Flag = OTHERS;
             LED_A_OFF_ALL();
         }
-        /* =================== [END] (全模式)LED自动响应颜色识别模块 [END] ==================== */
+        /* =================== [END] LED自动响应颜色识别模块 [END] ==================== */
 
 
-        // 手动模式：分配测距到当前朝向
+        /* =================== [START] 手动模式测距分配 [START] ==================== */
         if (FUNCTION_State == Flag_Manual_Mode && Force_ENABLE == 0)
         {
             if (Cur_Servo_Angle == 90)
@@ -439,8 +445,10 @@ int main(void)
                 HCSR04_Distance[2] = HCSR04_GetValue();
             }
         }
+        /* =================== [END] 手动模式测距分配 [END] ==================== */
 
-        // 自动模式或强制扫描：事件驱动舵机扫描（不依赖窄时间窗）
+
+        /* =================== [START] 自动模式/强制扫描：事件驱动舵机扫描 [START] ==================== */
         if ((FUNCTION_State == Flag_Auto_Mode || Force_ENABLE) && Car_Turn_ENABLE == 0)
         {
             if (Servo_Turn_Flag == 1)
@@ -448,25 +456,25 @@ int main(void)
                 switch (Servo_State)
                 {
                     case SCAN_FRONT_START:
-                        // 确保居中
-                        if (Cur_Servo_Angle != 90) { Cur_Servo_Angle = 90; Servo_SetAngle(90); }
-                        // 启动前方采样
-                        if (HCSR04_Sample_ENABLE == 0)
+                        if (Servo_Settle_Tick == 0)
                         {
-                            HCSR04_Sample_ENABLE = 1;
-                            HCSR04_Sample_State  = 0;
-                            HCSR04_Target        = 1; // 前
-                            HCSR04_StartMeasure();
-                            Servo_State = SCAN_FRONT_WAIT;
+                            if (Cur_Servo_Angle != 90) { Cur_Servo_Angle = 90; Servo_SetAngle(90); }
+                            if (HCSR04_Sample_ENABLE == 0)
+                            {
+                                HCSR04_Sample_ENABLE = 1;
+                                HCSR04_Sample_State  = 0;
+                                HCSR04_Target        = 1; // 前
+                                HCSR04_StartMeasure();
+                                Servo_State          = SCAN_FRONT_WAIT;
+                            }
                         }
                         break;
 
                     case SCAN_FRONT_WAIT:
-                        // 采样模块完成后（自动把 ENABLE 清零）
                         if (HCSR04_Sample_ENABLE == 0 && HCSR04_Sample_State == 0)
                         {
-                            Servo_Settle_Tick = 100; // 稍作等待
-                            Servo_State = TURN_LEFT;
+                            Servo_Settle_Tick = FRONT_TO_LEFT_MS;
+                            Servo_State       = TURN_LEFT;
                         }
                         break;
 
@@ -474,9 +482,9 @@ int main(void)
                         if (Servo_Settle_Tick == 0)
                         {
                             Servo_SetAngle(180);
-                            Cur_Servo_Angle = 180;
-                            Servo_Settle_Tick = 200; // 舵机到位等待
-                            Servo_State = SCAN_LEFT_START;
+                            Cur_Servo_Angle   = 180;
+                            Servo_Settle_Tick = LEFT_SETTLE_MS;
+                            Servo_State       = SCAN_LEFT_START;
                         }
                         break;
 
@@ -487,15 +495,15 @@ int main(void)
                             HCSR04_Sample_State  = 0;
                             HCSR04_Target        = 0; // 左
                             HCSR04_StartMeasure();
-                            Servo_State = SCAN_LEFT_WAIT;
+                            Servo_State          = SCAN_LEFT_WAIT;
                         }
                         break;
 
                     case SCAN_LEFT_WAIT:
                         if (HCSR04_Sample_ENABLE == 0 && HCSR04_Sample_State == 0)
                         {
-                            Servo_Settle_Tick = 100;
-                            Servo_State = TURN_RIGHT;
+                            Servo_Settle_Tick = LEFT_TO_RIGHT_MS;
+                            Servo_State       = TURN_RIGHT;
                         }
                         break;
 
@@ -503,9 +511,9 @@ int main(void)
                         if (Servo_Settle_Tick == 0)
                         {
                             Servo_SetAngle(0);
-                            Cur_Servo_Angle = 0;
-                            Servo_Settle_Tick = 200;
-                            Servo_State = SCAN_RIGHT_START;
+                            Cur_Servo_Angle   = 0;
+                            Servo_Settle_Tick = RIGHT_SETTLE_MS;
+                            Servo_State       = SCAN_RIGHT_START;
                         }
                         break;
 
@@ -516,15 +524,15 @@ int main(void)
                             HCSR04_Sample_State  = 0;
                             HCSR04_Target        = 2; // 右
                             HCSR04_StartMeasure();
-                            Servo_State = SCAN_RIGHT_WAIT;
+                            Servo_State          = SCAN_RIGHT_WAIT;
                         }
                         break;
 
                     case SCAN_RIGHT_WAIT:
                         if (HCSR04_Sample_ENABLE == 0 && HCSR04_Sample_State == 0)
                         {
-                            Servo_Settle_Tick = 120;
-                            Servo_State = RETURN_CENTER;
+                            Servo_Settle_Tick = RIGHT_TO_CENTER_MS;
+                            Servo_State       = RETURN_CENTER;
                         }
                         break;
 
@@ -532,9 +540,18 @@ int main(void)
                         if (Servo_Settle_Tick == 0)
                         {
                             Servo_SetAngle(90);
-                            Cur_Servo_Angle = 90;
-                            Servo_Settle_Tick = 120;
-                            Servo_State = SCAN_DONE;
+                            Cur_Servo_Angle   = 90;
+                            Servo_Settle_Tick = CENTER_SETTLE_MS;
+                            Servo_State       = START_FINAL_MEASURE;
+                        }
+                        break;
+
+                    case START_FINAL_MEASURE:
+                        if (Servo_Settle_Tick == 0)
+                        {
+                            HCSR04_StartMeasure();            // 最后一次触发测量
+                            Servo_Settle_Tick = FINAL_MEASURE_MS;
+                            Servo_State       = SCAN_DONE;
                         }
                         break;
 
@@ -543,7 +560,7 @@ int main(void)
                         {
                             Serial_Printf("[display,0,180,%04d,%04d,%04d  ]",
                                           (int)HCSR04_Distance[0], (int)HCSR04_Distance[1], (int)HCSR04_Distance[2]);
-                            Servo_Turn_Flag = 2;   // 扫描完成，进入寻路决策
+                            Servo_Turn_Flag = 2;       // 扫描完成，进入寻路决策
                             Servo_State     = SERVO_SCAN_IDLE;
                             Force_ENABLE    = 0;
                         }
@@ -566,18 +583,21 @@ int main(void)
                 {
                     Car_StraightRun_Falg = 0;
                     Car_Stop();
-                    Car_Movtion_Event = STOP;
+                    Car_Movtion_Event  = STOP;
 
-                    Servo_Turn_Flag   = 1;
-                    Servo_State       = SCAN_FRONT_START;
-                    Servo_Settle_Tick = 0;
+                    Servo_Turn_Flag    = 1;
+                    Servo_State        = SCAN_FRONT_START;
+                    Servo_Settle_Tick  = PRE_DELAY_MS;
                 }
             }
         }
+        /* =================== [END] 自动模式/强制扫描：事件驱动舵机扫描 [END] ==================== */
 
+
+        /* =================== [START] 自动模式寻路与直行响应 [START] ==================== */
         if (FUNCTION_State == Flag_Auto_Mode)
         {
-            /* =================== [START] (自动模式)寻路决策模块 [START] ==================== */
+            // 寻路决策：在扫描完成后进行
             if (Servo_Turn_Flag == 2)
             {
                 if (Car_Turn_Strategy == Right_Priority)
@@ -587,7 +607,7 @@ int main(void)
                     else if (HCSR04_Distance[0] >= 18) { Car_Movtion_Event = LEFT_90; record_motion_event(LEFT_90); }
                     else { Car_Movtion_Event = AROUND; record_motion_event(AROUND); }
                 }
-                else
+                else // Left_Priority
                 {
                     if (HCSR04_Distance[0] >= 18) { Car_Movtion_Event = LEFT_90; record_motion_event(LEFT_90); }
                     else if (HCSR04_Distance[1] >= 10) { Car_Movtion_Event = UP; record_motion_event(UP); }
@@ -600,6 +620,7 @@ int main(void)
                 else if (Corridor_Flag == 1 && Car_Movtion_Event != UP) { Corridor_Flag = 0; }
                 if (Corridor_Count >= 5 && Car_Turn_Strategy == Right_Priority) { Car_Turn_Strategy = Left_Priority; }
 
+                // 执行动作
                 switch (Car_Movtion_Event)
                 {
                     case UP:
@@ -627,9 +648,8 @@ int main(void)
 
                 Servo_Turn_Flag = 0; // 决策已下发
             }
-            /* =================== [END] (自动模式)寻路决策模块 [END] ==================== */
 
-            /* =================== [START] (自动模式)直行请求响应模块 [START] ==================== */
+            // 直行请求响应
             if (Car_Turn_ENABLE == 0 && Car_StraightRun_Falg == 1)
             {
                 Go_Ahead_SET(95);
@@ -647,13 +667,14 @@ int main(void)
                     // 开始下一轮舵机旋转测距
                     Servo_Turn_Flag   = 1;
                     Servo_State       = SCAN_FRONT_START;
-                    Servo_Settle_Tick = 0;
+                    Servo_Settle_Tick = PRE_DELAY_MS;
                 }
             }
-            /* =================== [END] (自动模式)直行请求响应模块 [END] ==================== */
         }
+        /* =================== [END] 自动模式寻路与直行响应 [END] ==================== */
 
-        /* =================== [START] ()超声波数据采样模块 [START] ==================== */
+
+        /* =================== [START] 超声波采样状态机 [START] ==================== */
         if (HCSR04_Sample_ENABLE)
         {
             if (HCSR04_Sample_State == 0)
@@ -694,49 +715,45 @@ int main(void)
                 HCSR04_Sample_ENABLE = 0;
             }
         }
-        /* =================== [END] ()超声波数据采样模块 [END] ==================== */
+        /* =================== [END] 超声波采样状态机 [END] ==================== */
     }
 }
 
-/* =================== [START] TIM1 更新中断 [START] ==================== */
-// 1ms 的定时中断
+
+/* =================== [START] TIM1 更新中断（1ms） [START] ==================== */
 void TIM1_UP_IRQHandler(void)
 {
     if (TIM_GetITStatus(TIM1, TIM_IT_Update) == SET)
     {
         TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
 
-        // 保证数据的及时读取
+        // 陀螺仪读取
         MPU6050_GetGZ(&GZ);
 
-        // 各个计时
+        // 计时递减
         TimeTick++;
         if (Car_Turn_TimeTick > 0)            Car_Turn_TimeTick--;
         if (Servo_Settle_Tick > 0)            Servo_Settle_Tick--;
         if (Car_StraightRun_Falg == 2 && Car_Movtion_Delay_TimeTick > 0) Car_Movtion_Delay_TimeTick--;
         if (HCSR04_Sample_TimeTick > 0)       HCSR04_Sample_TimeTick--;
 
-        // 超声波模块HCSR04进程
+        // 超声波内部tick
         HCSR04_Tick();
 
+        // 颜色识别定时更新（100ms）
         if (TimeTick >= 100)
         {
             TimeTick = 0;
-            // 颜色识别模块TCS34725
             rgb = TCS34725_Get_RGBData();
-            RGB888 = TCS34725_GetRGB888(rgb); // 将原始数据转化为RGB888格式
-            RGB565 = TCS34725_GetRGB565(rgb); // 将原始数据转化为RGB565格式
-            Dis_Temp();                       // 转化为可读颜色数据
+            RGB888 = TCS34725_GetRGB888(rgb);
+            RGB565 = TCS34725_GetRGB565(rgb);
+            Dis_Temp();
         }
 
-        /* =================== [START] (全模式)MPU6050解算模块 [START] ==================== */
-        // 简单零飘校准（示例）
+        /* 姿态解算（仅Z轴积分，存在漂移）：保留你原来的简易零漂与积分 */
         GZ += 8;
         if (-1 < GZ && GZ < 2) { GZ = 0; }
-
-        // 偏航角：仅陀螺仪积分（2000dps 量程近似）
         Yaw += (float)GZ / 32768.0f * 2050.0f * 0.001f;
-        /* =================== [END] (全模式)MPU6050解算模块 [END] ==================== */
     }
 }
-/* =================== [END] TIM1 更新中断 [END] ==================== */
+/* =================== [END] TIM1 更新中断（1ms） [END] ==================== */
