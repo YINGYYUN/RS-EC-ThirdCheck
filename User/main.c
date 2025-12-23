@@ -99,16 +99,14 @@ uint8_t Color_Flag = OTHERS;
 
 /* =================== [START] (全模式)舵机旋转模块 [START]==================== */
 //舵机当前角度（每次上电后自动旋转至该角度）
+//这是一个针对手动旋转舵机操作而设置的变量，自动测距下干脆不进行更新
 uint8_t Cur_Servo_Angle = 90;
-
-//舵机目标角度
-//uint8_t Tar_Servo_Angle = 90;
 
 //舵机运行时基
 volatile uint16_t Servo_TimeTick = 0;
 
 //舵机旋转标志位
-//01234代表旋转本身的不同阶段，防止频繁发出旋转指令
+//0 1 2 3 4 5 6 7 代表旋转本身的不同阶段，防止频繁发出旋转指令
 uint8_t Servo_State = 0;
 
 //舵机旋转测距标志位
@@ -426,7 +424,7 @@ int main(void)
 		Serial_Printf("[display,0,60,%+02.3f  ]", Yaw);
 		Serial_Printf("[display,0,100,%03d %03d %03d]", R_Dat, G_Dat, B_Dat);
 //		Serial_Printf("[display,0,140,%d ]", Cur_Servo_Angle);
-		Serial_Printf("[display,0,140,%d ]", Corridor_Count);
+		Serial_Printf("[display,0,140,%02d  %02d]", Corridor_Count, Car_Movtion_Count);
 		if (FUNCTION_State == Flag_Manual_Mode)
 		{
 			Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
@@ -538,7 +536,7 @@ int main(void)
 						{							
 							Servo_State = 1;
 							
-							Servo_TimeTick = 0;
+//							Servo_TimeTick = 0;
 							break;
 						}
 						
@@ -560,10 +558,11 @@ int main(void)
 								HCSR04_Sample_ENABLE = 1;
 								HCSR04_Sample_State = 0;
 								HCSR04_Target = 0;
+								HCSR04_Sample_TimeTick = 0;
 							}
 							Servo_State = 3;
 							
-							Servo_TimeTick = 200;
+							Servo_TimeTick = 220;
 							break;
 						}
 						
@@ -585,10 +584,11 @@ int main(void)
 								HCSR04_Sample_ENABLE = 1;
 								HCSR04_Sample_State = 0;
 								HCSR04_Target = 2;
+								HCSR04_Sample_TimeTick = 0;
 							}
 							Servo_State = 5;
 							
-							Servo_TimeTick = 200;
+							Servo_TimeTick = 220;
 							break;
 						}
 						
@@ -611,10 +611,11 @@ int main(void)
 								HCSR04_Sample_ENABLE = 1;
 								HCSR04_Sample_State = 0;
 								HCSR04_Target = 1;
+								HCSR04_Sample_TimeTick = 0;
 							}
 							Servo_State = 7;
 							
-							Servo_TimeTick = 200;
+							Servo_TimeTick = 220;
 							break;
 						}
 						
@@ -656,28 +657,28 @@ int main(void)
 					if (HCSR04_Distance[2] >= 18)
 					{		
 						Car_Movtion_Event = RIGHT_90;
-						Car_Movtion_Event_History [Car_Movtion_Count] = RIGHT_90;
+						Car_Movtion_Event_History [Car_Movtion_Count % 60] = RIGHT_90;
 						Car_Movtion_Count ++;
 					}
 					//前
 					else if (HCSR04_Distance[1] >= 10)
 					{								
 						Car_Movtion_Event = UP;
-						Car_Movtion_Event_History [Car_Movtion_Count] = UP;
+						Car_Movtion_Event_History [Car_Movtion_Count % 60] = UP;
 						Car_Movtion_Count ++;
 					}
 					//左
 					else if (HCSR04_Distance[0] >= 18)
 					{										
 						Car_Movtion_Event = LEFT_90;
-						Car_Movtion_Event_History [Car_Movtion_Count] = LEFT_90;
+						Car_Movtion_Event_History [Car_Movtion_Count % 60] = LEFT_90;
 						Car_Movtion_Count ++;
 					}
 					//后
 					else 
 					{										
 						Car_Movtion_Event = AROUND;
-						Car_Movtion_Event_History [Car_Movtion_Count] = AROUND;
+						Car_Movtion_Event_History [Car_Movtion_Count % 60] = AROUND;
 						Car_Movtion_Count ++;
 					}
 				}
@@ -687,7 +688,7 @@ int main(void)
 					if (HCSR04_Distance[0] >= 18)
 					{										
 						Car_Movtion_Event = LEFT_90;
-						Car_Movtion_Event_History [Car_Movtion_Count] = LEFT_90;
+						Car_Movtion_Event_History [Car_Movtion_Count % 60] = LEFT_90;
 						Car_Movtion_Count ++;
 					}
 					
@@ -695,21 +696,21 @@ int main(void)
 					else if (HCSR04_Distance[1] >= 10)
 					{								
 						Car_Movtion_Event = UP;
-						Car_Movtion_Event_History [Car_Movtion_Count] = UP;
+						Car_Movtion_Event_History [Car_Movtion_Count % 60] = UP;
 						Car_Movtion_Count ++;
 					}
 					//右
 					else if (HCSR04_Distance[2] >= 18)
 					{		
 						Car_Movtion_Event = RIGHT_90;
-						Car_Movtion_Event_History [Car_Movtion_Count] = RIGHT_90;
+						Car_Movtion_Event_History [Car_Movtion_Count % 60] = RIGHT_90;
 						Car_Movtion_Count ++;
 					}
 					//后
 					else 
 					{										
 						Car_Movtion_Event = AROUND;
-						Car_Movtion_Event_History [Car_Movtion_Count] = AROUND;
+						Car_Movtion_Event_History [Car_Movtion_Count % 60] = AROUND;
 						Car_Movtion_Count ++;
 					}
 				}
@@ -815,46 +816,60 @@ int main(void)
 		/* =================== [START] ()超声波数据采样模块 [START]==================== */
 		if (HCSR04_Sample_ENABLE)
 		{
-			if (HCSR04_Sample_State == 0)
+			if (HCSR04_Sample_TimeTick == 0)
 			{
-				//空数据
-				HCSR04_History[0] = HCSR04_GetValue();
-				HCSR04_StartMeasure();
-				HCSR04_Sample_Count = 0;
-				HCSR04_History[1]=HCSR04_History[2]=HCSR04_History[3]=0;
-				HCSR04_Sample_TimeTick = 62;
-				
-				HCSR04_Sample_State = 1;
-			}
-			else if (HCSR04_Sample_State == 1 && HCSR04_Sample_TimeTick == 0)
-			{
-				HCSR04_History[1] = HCSR04_GetValue();
-				HCSR04_StartMeasure();
-				if (HCSR04_History[1]) {HCSR04_Sample_Count ++;}
-				HCSR04_Sample_TimeTick = 62;
-				
-				HCSR04_Sample_State = 2;
-			}
-			else if (HCSR04_Sample_State == 2 && HCSR04_Sample_TimeTick == 0)
-			{
-				HCSR04_History[2] = HCSR04_GetValue();
-				HCSR04_StartMeasure();
-				if (HCSR04_History[2]) {HCSR04_Sample_Count ++;}
-				HCSR04_Sample_TimeTick = 62;
-				
-				HCSR04_Sample_State = 3;
-			}
-			else if (HCSR04_Sample_State == 3 && HCSR04_Sample_TimeTick == 0)
-			{
-				HCSR04_History[3] = HCSR04_GetValue();
-				if (HCSR04_History[3]) {HCSR04_Sample_Count ++;}								
-				if (HCSR04_Sample_Count)
-				{
-					HCSR04_Distance[HCSR04_Target] = (HCSR04_History[1] + HCSR04_History[2] + HCSR04_History[3]) / 1.0 / HCSR04_Sample_Count;
+				switch (HCSR04_Sample_State){
+					
+					case 0:
+					{
+						//初始化
+						HCSR04_StartMeasure();
+						HCSR04_Sample_Count = 0;
+						HCSR04_History[1]=HCSR04_History[2]=HCSR04_History[3]=0;
+						HCSR04_Sample_TimeTick = 62;
+						
+						HCSR04_Sample_State = 1;
+						break;
+					}
+					
+					case 1:
+					{
+						HCSR04_History[1] = HCSR04_GetValue();
+						HCSR04_StartMeasure();
+						if (HCSR04_History[1]) {HCSR04_Sample_Count ++;}
+						HCSR04_Sample_TimeTick = 62;
+						
+						HCSR04_Sample_State = 2;
+						break;
+						
+					}
+					
+					case 2:
+					{
+						HCSR04_History[2] = HCSR04_GetValue();
+						HCSR04_StartMeasure();
+						if (HCSR04_History[2]) {HCSR04_Sample_Count ++;}
+						HCSR04_Sample_TimeTick = 62;
+						
+						HCSR04_Sample_State = 3;
+						break;
+						
+					}
+
+					case 3:
+					{
+						HCSR04_History[3] = HCSR04_GetValue();
+						if (HCSR04_History[3]) {HCSR04_Sample_Count ++;}								
+						if (HCSR04_Sample_Count)
+						{
+							HCSR04_Distance[HCSR04_Target] = (HCSR04_History[1] + HCSR04_History[2] + HCSR04_History[3]) / 1.0 / HCSR04_Sample_Count;
+						}
+						
+						HCSR04_Sample_State	= 0;	
+						HCSR04_Sample_ENABLE = 0;	
+						break;
+					}
 				}
-				
-				HCSR04_Sample_State	= 0;	
-				HCSR04_Sample_ENABLE = 0;			
 			}
 		}
 	
