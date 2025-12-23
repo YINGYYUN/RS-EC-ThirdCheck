@@ -65,6 +65,7 @@ uint8_t Corridor_Count = 0;
 
 //(自动模式)定时直行请求挂起标志位
 volatile uint8_t Car_StraightRun_Falg = 0;
+volatile uint16_t Car_StraightRun_Delay_TimeTick = 0;
 
 //定角度转向请求挂起标志位
 volatile uint8_t Car_Turn_ENABLE = 0;
@@ -72,10 +73,6 @@ volatile uint8_t Car_Turn_ENABLE = 0;
 float Car_Tar_Yaw = 0.0f;
 //旋转超时计时
 volatile uint16_t Car_Turn_TimeTick = 0;
-
-//定时运动计时和标志位
-volatile uint16_t Car_Movtion_Delay_TimeTick = 0;
-uint8_t Car_Movtion_Delay_Flag = 0;
 /* ==================== [END] (全模式)运动状态控制相关变量定义 [END] ==================== */
 
 
@@ -186,13 +183,6 @@ int main(void)
 	
 	while(1)
 	{
-//		//时间间隔测试保留
-//		if (Car_Movtion_Delay_TimeTick == 0 && Car_Movtion_Delay_Flag == 1)
-//		{
-//			Car_Stop();
-//			Car_Movtion_Event = STOP;
-//			Car_Turn_ENABLE = 0;
-//		}
 		
 		
 		
@@ -262,12 +252,7 @@ int main(void)
 					if (strcmp(Name, "UP") == 0 && strcmp(Action, "down") == 0)
 					{
 						Go_Ahead_SET(95);
-						Car_Movtion_Event = UP;		
-						
-//						//时间间隔测试保留
-//						Car_Movtion_Delay_Flag = 1;
-//						Car_Movtion_Delay_TimeTick = 1400;
-						
+						Car_Movtion_Event = UP;								
 					}
 					else if (strcmp(Name, "DOWN") == 0 && strcmp(Action, "down") == 0)
 					{
@@ -376,7 +361,7 @@ int main(void)
 				if (FUNCTION_State == Flag_Auto_Mode)
 				{
 					Car_StraightRun_Falg = 1;
-					Car_Movtion_Delay_TimeTick = 1400;
+					Car_StraightRun_Delay_TimeTick = 1400;
 					Car_Movtion_Event = UP;		
 				}
 			}
@@ -408,7 +393,7 @@ int main(void)
 					if (FUNCTION_State == Flag_Auto_Mode)
 					{
 						Car_StraightRun_Falg = 1;
-						Car_Movtion_Delay_TimeTick = 1400;
+						Car_StraightRun_Delay_TimeTick = 1400;
 						Car_Movtion_Event = UP;		
 					}
 				}
@@ -515,7 +500,7 @@ int main(void)
 				HCSR04_Distance[1] = HCSR04_GetValue();
 				Serial_Printf("[display,0,180,%03d,%03d,%03d  ]", HCSR04_Distance[0], HCSR04_Distance[1], HCSR04_Distance[2]);
 				//到墙
-				if (Car_Movtion_Delay_TimeTick <= 1200 && HCSR04_Distance[1] <= 7 && HCSR04_Distance[1] != 0)
+				if (Car_StraightRun_Delay_TimeTick <= 1200 && HCSR04_Distance[1] <= 7 && HCSR04_Distance[1] != 0)
 				{
 					Car_StraightRun_Falg = 0;
 					Car_Stop();
@@ -715,16 +700,19 @@ int main(void)
 					}
 				}
 				
+				//判定长廊（开始）先累加，同时置长廊标志位
 				if (Corridor_Flag == 0 && HCSR04_Distance[1] >= 30)
 				{
 					Corridor_Flag = 1;
 					Corridor_Count ++;
 				}
+				//判定长廊（完结）如果发出转向，则重置长廊标志位
 				else if (Corridor_Flag == 1 && Car_Movtion_Event != UP)
 				{
 					Corridor_Flag = 0;
 				}
 				
+				//通过长廊的计数更改训练策略
 				if (Corridor_Count >= 5 && Car_Turn_Strategy == Right_Priority)
 				{
 					Car_Turn_Strategy = Left_Priority;				
@@ -734,14 +722,16 @@ int main(void)
 				//二层:执行
 				switch(Car_Movtion_Event)
 				{
+					//直行
 					case UP:
 					{
 						Car_StraightRun_Falg = 1;
-						Car_Movtion_Delay_TimeTick = 1400;
+						Car_StraightRun_Delay_TimeTick = 1400;
 
 						break;
 					}
 					
+					//调头
 					case AROUND:
 					{
 						//发送定角度转向请求
@@ -752,6 +742,7 @@ int main(void)
 						break;
 					}						
 					
+					//右转90度
 					case RIGHT_90:
 					{
 						//发送定角度转向请求
@@ -762,6 +753,7 @@ int main(void)
 						break;
 					}
 					
+					//左转90度
 					case LEFT_90:
 					{
 						//发送定角度转向请求
@@ -772,6 +764,7 @@ int main(void)
 						break;
 					}
 				}				
+				//重置旋转测距标志位
 				Servo_Turn_Flag = 0;
 			}
 			/* =================== [END] (自动模式)寻路决策模块 [END]==================== */
@@ -783,6 +776,7 @@ int main(void)
 			//在小车定角度旋转结束的前提下
 			if (Car_Turn_ENABLE == 0 && Car_StraightRun_Falg == 1)
 			{
+				//发出直行指令
 				Go_Ahead_SET(95);
 				Car_Movtion_Event = UP;
 				Car_StraightRun_Falg = 2;
@@ -790,7 +784,7 @@ int main(void)
 			else if (Car_StraightRun_Falg == 2)
 			{
 				//直行超时
-				if (Car_Movtion_Delay_TimeTick == 0)
+				if (Car_StraightRun_Delay_TimeTick == 0)
 				{
 					//停车
 					Car_Stop();
@@ -834,30 +828,31 @@ int main(void)
 					
 					case 1:
 					{
+						//第一次接收结果
 						HCSR04_History[1] = HCSR04_GetValue();
 						HCSR04_StartMeasure();
 						if (HCSR04_History[1]) {HCSR04_Sample_Count ++;}
 						HCSR04_Sample_TimeTick = 62;
 						
 						HCSR04_Sample_State = 2;
-						break;
-						
+						break;						
 					}
 					
 					case 2:
 					{
+						//第二次接收结果
 						HCSR04_History[2] = HCSR04_GetValue();
 						HCSR04_StartMeasure();
 						if (HCSR04_History[2]) {HCSR04_Sample_Count ++;}
 						HCSR04_Sample_TimeTick = 62;
 						
 						HCSR04_Sample_State = 3;
-						break;
-						
+						break;						
 					}
 
 					case 3:
 					{
+						//第三次接收结果
 						HCSR04_History[3] = HCSR04_GetValue();
 						if (HCSR04_History[3]) {HCSR04_Sample_Count ++;}								
 						if (HCSR04_Sample_Count)
@@ -882,7 +877,6 @@ int main(void)
 }//int main(void)
 
 volatile uint16_t TimeTick;
-//uint8_t Servo_Test_State = 0;
 
 //1ms的定时中断
 void TIM1_UP_IRQHandler(void)
@@ -902,7 +896,7 @@ void TIM1_UP_IRQHandler(void)
 		TimeTick ++;
 		if (Car_Turn_TimeTick > 0) Car_Turn_TimeTick --;
 		if (Servo_TimeTick > 0)Servo_TimeTick --;
-		if (Car_StraightRun_Falg == 2 && Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
+		if (Car_StraightRun_Falg == 2 && Car_StraightRun_Delay_TimeTick > 0)Car_StraightRun_Delay_TimeTick --;
 		if (HCSR04_Sample_TimeTick > 0 ) HCSR04_Sample_TimeTick --;
 //		if (Car_Movtion_Delay_TimeTick > 0)Car_Movtion_Delay_TimeTick --;
 		//超声波模块HCSR04进程
